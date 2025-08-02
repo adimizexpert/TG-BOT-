@@ -1,0 +1,23 @@
+{
+  "ADMIN_IDS": [
+    5638736363,
+    6049429537
+  ],
+  "GROUP_IDS": [
+    -4983164991
+  ],
+  "CLIENT_GROUP_ASSIGNMENTS": {
+    "CLNT": [
+      "8257",
+      "5244",
+      "3455"
+    ]
+  },
+  "PENDING_CLIENTS": {
+    "7628229430": {
+      "username": "Adimizexpert",
+      "first_name": "adimizexpert",
+      "timestamp": "2025-08-03T00:07:07.576833"
+    }
+  }
+}

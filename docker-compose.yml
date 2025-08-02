@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  telegram-bot:
+    build: .
+    container_name: telegram-bot
+    restart: unless-stopped
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+    volumes:
+      - ./config.json:/app/config.json
+      - ./client_data.json:/app/client_data.json
+    networks:
+      - bot-network
+
+networks:
+  bot-network:
+    driver: bridge 

@@ -82,7 +82,7 @@ telegram-bot/
 5. [ ] Configure:
    - **Name**: `telegram-bot`
    - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `python working_bot.py`
+   - **Start Command**: `pythono working_bot.py`
 6. [ ] Add environment variable: `BOT_TOKEN=your_token`
 7. [ ] Click "Create Web Service"
 
@@ -208,3 +208,135 @@ Your bot is successfully deployed when:
 ---
 
 **🚀 Ready to deploy! Choose your platform and follow the steps above.** 
+
+## 🚀 **RAM Requirements for 20-25 Clients**
+
+### **Minimum Requirements:**
+- **512 MB RAM** - Basic functionality
+- **1 GB RAM** - Recommended for smooth operation
+- **2 GB RAM** - Optimal for better performance
+
+### **Detailed Breakdown:**
+
+#### **🟢 Light Usage (Basic Bot)**
+- **512 MB - 1 GB RAM**
+- Suitable for:
+  - Text messages only
+  - Basic admin panel
+  - Simple client management
+  - Low message volume (< 100 messages/day)
+
+#### **🟡 Moderate Usage (Standard Bot)**
+- **1 GB - 2 GB RAM**
+- Recommended for:
+  - Text + media messages (photos, documents)
+  - Active admin panel usage
+  - 20-25 active clients
+  - Medium message volume (100-500 messages/day)
+
+#### **🔴 Heavy Usage (Advanced Bot)**
+- **2 GB - 4 GB RAM**
+- For:
+  - High media traffic (videos, large files)
+  - Complex admin operations
+  - High message volume (500+ messages/day)
+  - Multiple concurrent operations
+
+## 📊 **Memory Usage Breakdown**
+
+### **Per Client:**
+- **Client data storage**: ~2-5 KB per client
+- **Message history**: ~1-10 KB per message
+- **Media cache**: ~50-200 KB per media file
+
+### **Bot Components:**
+- **Python runtime**: ~50-100 MB
+- **Telegram library**: ~20-50 MB
+- **JSON data storage**: ~1-5 MB
+- **Message processing**: ~10-50 MB
+- **Admin panel operations**: ~20-100 MB
+
+## 🎯 **Recommended Configuration**
+
+### **For Your Bot (20-25 clients):**
+
+**Minimum: 1 GB RAM**
+- ✅ Handles all current features
+- ✅ Supports media messages
+- ✅ Smooth admin panel operation
+- ✅ Room for growth
+
+**Optimal: 2 GB RAM**
+- ✅ Excellent performance
+- ✅ Handles high traffic
+- ✅ Future-proof
+- ✅ Multiple concurrent operations
+
+## 💡 **Memory Optimization Tips**
+
+### **1. Data Cleanup**
+```python
+# Add to your bot for periodic cleanup
+import gc
+import time
+
+def cleanup_memory():
+    gc.collect()
+    # Clear old message caches
+    # Remove old media files
+```
+
+### **2. Efficient Storage**
+- Use JSON compression
+- Implement message history limits
+- Clean old media files
+- Optimize image sizes
+
+### **3. Monitoring**
+```python
+<code_block_to_apply_changes_from>
+```
+
+## 📈 **Scaling Considerations**
+
+### **Current (20-25 clients):**
+- **1 GB RAM** is sufficient
+- **2 GB RAM** for optimal performance
+
+### **Future Growth (50+ clients):**
+- **2-4 GB RAM** recommended
+- Consider database optimization
+- Implement caching strategies
+
+## 🔧 **Memory Monitoring Script**
+
+Add this to your bot for monitoring:
+
+```python
+import psutil
+import os
+from datetime import datetime
+
+def log_memory_usage():
+    process = psutil.Process(os.getpid())
+    memory_mb = process.memory_info().rss / 1024 / 1024
+    memory_percent = process.memory_percent()
+    
+    print(f"[{datetime.now()}] Memory: {memory_mb:.2f} MB ({memory_percent:.1f}%)")
+    
+    # Alert if memory usage is high
+    if memory_mb > 800:  # For 1GB limit
+        print("⚠️ High memory usage detected!")
+```
+
+## 🎯 **Final Recommendation**
+
+**For your 20-25 client bot:**
+
+1. **Start with 1 GB RAM** - This will handle your current needs perfectly
+2. **Monitor usage** - Use the monitoring script above
+3. **Upgrade to 2 GB** if you see high usage or plan to scale
+
+**Most hosting platforms offer 1 GB RAM for $5-15/month, which is perfect for your use case.**
+
+Would you like me to help you implement memory monitoring in your bot or optimize the code for better memory efficiency?

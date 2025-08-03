@@ -363,6 +363,74 @@ class WorkingBot:
         
         await message.reply_text("✅ Message received!")
     
+    async def handle_group_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle messages from groups and forward to all clients"""
+        message = update.message
+        chat_id = message.chat.id
+        
+        # Only process messages from authorized groups
+        if chat_id not in self.config.get("GROUP_IDS", []):
+            return
+        
+        # Skip bot messages
+        if message.from_user.is_bot:
+            return
+        
+        print(f"🔍 Debug: Received message from group {chat_id}")
+        print(f"🔍 Debug: Message from user: {message.from_user.id}")
+        print(f"🔍 Debug: Message text: {message.text}")
+        
+        # Forward to all clients
+        for client_id, client_data in self.client_data.items():
+            client_telegram_id = client_data.get("telegram_id")
+            if not client_telegram_id:
+                continue
+            
+            try:
+                # Get sender info
+                sender_name = message.from_user.first_name or message.from_user.username or f"User{message.from_user.id}"
+                
+                if message.text:
+                    await context.bot.send_message(
+                        chat_id=client_telegram_id,
+                        text=message.text
+                    )
+                    print(f"✅ Debug: Forwarded text to client {client_telegram_id}")
+                elif message.photo:
+                    await context.bot.send_photo(
+                        chat_id=client_telegram_id,
+                        photo=message.photo[-1].file_id
+                    )
+                    print(f"✅ Debug: Forwarded photo to client {client_telegram_id}")
+                elif message.video:
+                    await context.bot.send_video(
+                        chat_id=client_telegram_id,
+                        video=message.video.file_id
+                    )
+                    print(f"✅ Debug: Forwarded video to client {client_telegram_id}")
+                elif message.audio:
+                    await context.bot.send_audio(
+                        chat_id=client_telegram_id,
+                        audio=message.audio.file_id
+                    )
+                    print(f"✅ Debug: Forwarded audio to client {client_telegram_id}")
+                elif message.document:
+                    await context.bot.send_document(
+                        chat_id=client_telegram_id,
+                        document=message.document.file_id
+                    )
+                    print(f"✅ Debug: Forwarded document to client {client_telegram_id}")
+                elif message.voice:
+                    await context.bot.send_voice(
+                        chat_id=client_telegram_id,
+                        voice=message.voice.file_id
+                    )
+                    print(f"✅ Debug: Forwarded voice to client {client_telegram_id}")
+                
+            except Exception as e:
+                print(f"❌ Debug: Error forwarding to client {client_telegram_id}: {e}")
+                logger.error(f"Error forwarding to client {client_telegram_id}: {e}")
+    
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle button callbacks"""
         query = update.callback_query

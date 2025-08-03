@@ -312,12 +312,12 @@ class WorkingBot:
         await query.answer()
         
         # Check if this is an admin callback and restrict to private chat
-        if query.data.startswith(("admin_", "select_", "toggle_", "delete_group_")):
+        if query.data.startswith(("admin_", "select_", "toggle_", "delete_group_")) and not query.data.startswith("add_group_"):
             if not self.is_admin(query.from_user.id):
                 await query.edit_message_text("❌ Admin access required!")
                 return
             
-            # Only allow admin callbacks in private chat
+            # Only allow admin callbacks in private chat (except for group addition)
             if query.message.chat.type != "private":
                 await query.edit_message_text("❌ Admin features can only be used in private chat with the bot!")
                 return
@@ -792,9 +792,51 @@ class WorkingBot:
                 group_name = await self.get_group_name(str(group_id), context)
                 
                 await query.edit_message_text(f"✅ {group_name} deleted successfully!", reply_markup=reply_markup)
-            else:
-                await query.edit_message_text("❌ Group not found!")
+        else:
+            await query.edit_message_text("❌ Group not found!")
+            return
+        
+        elif query.data == "admin_panel":
+            if not self.is_admin(query.from_user.id):
+                await query.edit_message_text("❌ Admin access required!")
                 return
+            
+            # Only allow in private chat
+            if query.message.chat.type != "private":
+                await query.edit_message_text("❌ Admin panel can only be used in private chat with the bot!")
+                return
+            
+            keyboard = [
+                [InlineKeyboardButton("📋 List Clients", callback_data="admin_list_clients")],
+                [InlineKeyboardButton("➕ Add Group", callback_data="admin_add_group")],
+                [InlineKeyboardButton("🔗 Assign Client to Groups", callback_data="admin_assign_client_groups")],
+                [InlineKeyboardButton("🗑️ Delete Groups", callback_data="admin_delete_groups")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            admin_text = """🔧 Admin Panel
+
+📱 **Button Commands (Click to use):**
+📋 List Clients - View all registered clients
+➕ Add Group - Add current group as authorized
+🔗 Assign Client to Groups - Assign specific groups to clients
+🗑️ Delete Groups - Remove unwanted groups
+
+📝 **Text Commands (Type to use):**
+• /listclients - List all registered clients
+• /getinfo <client_id> - Get client details
+• /setalias <client_id> <alias> - Set client alias
+• /setgroupname <group_id> <name> - Set custom group name
+• /assigngroup - Add current group as authorized
+
+🔐 **Security Commands:**
+• /pending - List pending clients for approval
+• /approve <telegram_id> - Approve a client
+• /reject <telegram_id> - Reject a client
+
+Select an option below or use text commands directly!"""
+            
+            await query.edit_message_text(admin_text, reply_markup=reply_markup)
         
         elif query.data.startswith("approve_"):
             if not self.is_admin(query.from_user.id):
@@ -1163,13 +1205,37 @@ class WorkingBot:
             await update.message.reply_text("✅ Group already authorized!")
             return
         
-        if "GROUP_IDS" not in self.config:
-            self.config["GROUP_IDS"] = []
+        # Store the chat_id temporarily for name input
+        if "TEMP_GROUP_ADD" not in self.config:
+            self.config["TEMP_GROUP_ADD"] = {}
         
-        self.config["GROUP_IDS"].append(chat_id)
+        self.config["TEMP_GROUP_ADD"]["pending_chat_id"] = chat_id
         self.save_config()
         
-        await update.message.reply_text("✅ Group added as authorized broadcast group!")
+        # Show options for adding the group
+        keyboard = [
+            [InlineKeyboardButton("✅ Add with Auto Name", callback_data=f"add_group_auto_{chat_id}")],
+            [InlineKeyboardButton("✏️ Add with Custom Name", callback_data=f"add_group_custom_{chat_id}")],
+            [InlineKeyboardButton("🔙 Cancel", callback_data="admin_panel")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Try to get current group name
+        try:
+            group_chat = await context.bot.get_chat(chat_id)
+            current_name = group_chat.title or f"Group {chat_id}"
+        except:
+            current_name = f"Group {chat_id}"
+        
+        await update.message.reply_text(
+            f"🏢 Add Group\n\n"
+            f"Current Group: {current_name}\n"
+            f"Group ID: {chat_id}\n\n"
+            f"Choose how to add this group:\n"
+            f"✅ Auto Name - Use Telegram group name\n"
+            f"✏️ Custom Name - Set your own name",
+            reply_markup=reply_markup
+        )
     
     async def set_alias_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Set alias for a client"""
@@ -1325,12 +1391,18 @@ class WorkingBot:
                 
                 await update.message.reply_text(help_text, reply_markup=reply_markup)
             else:
-                # In groups, only show basic help
+                # In groups, show group-specific help
                 help_text = """
-🔧 Admin Commands
+🔧 Admin Commands in Groups
 
-Available commands in groups:
-• /assigngroup - Add this group as authorized
+Available commands in this group:
+• /assigngroup - Add this group as authorized (with name options)
+• /help - Show this help message
+
+📝 **How to add this group:**
+1. Use /assigngroup command
+2. Choose "Auto Name" or "Custom Name"
+3. If custom name, type the name in private chat
 
 For full admin features, use /help in private chat with the bot.
                 """

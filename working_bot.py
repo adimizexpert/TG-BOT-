@@ -53,6 +53,11 @@ class WorkingBot:
             self.config["PENDING_CLIENTS"] = {}
             self.save_config()
         
+        # Initialize group names if not exists
+        if "GROUP_NAMES" not in self.config:
+            self.config["GROUP_NAMES"] = {}
+            self.save_config()
+    
     def load_config(self) -> Dict:
         try:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
@@ -104,6 +109,23 @@ class WorkingBot:
         """Check if client is pending approval"""
         return str(telegram_id) in self.config.get("PENDING_CLIENTS", {})
     
+    async def get_group_name(self, group_id: str, context: ContextTypes.DEFAULT_TYPE) -> str:
+        """Get group name from Telegram or stored names"""
+        # First try to get from Telegram
+        try:
+            group_chat = await context.bot.get_chat(int(group_id))
+            group_name = group_chat.title or f"Group {group_id}"
+            # Store the name for future use
+            self.config["GROUP_NAMES"][group_id] = group_name
+            self.save_config()
+            return group_name
+        except Exception as e:
+            # Fall back to stored name or default
+            stored_name = self.config.get("GROUP_NAMES", {}).get(group_id)
+            if stored_name:
+                return stored_name
+            return f"Group {group_id}"
+    
     def add_pending_client(self, telegram_id: int, username: str, first_name: str):
         """Add client to pending list"""
         self.config["PENDING_CLIENTS"][str(telegram_id)] = {
@@ -135,6 +157,45 @@ class WorkingBot:
         """Handle messages from clients"""
         message = update.message
         user = message.from_user
+        
+        # Check if admin is waiting for custom group name input
+        if self.is_admin(user.id):
+            temp_data = self.config.get("TEMP_GROUP_ADD", {})
+            if temp_data.get("waiting_for_name") and temp_data.get("pending_chat_id"):
+                chat_id = temp_data["pending_chat_id"]
+                custom_name = message.text.strip()
+                
+                if len(custom_name) > 50:
+                    await message.reply_text("❌ Group name too long! Please use a shorter name (max 50 characters).")
+                    return
+                
+                # Add to GROUP_IDS
+                if "GROUP_IDS" not in self.config:
+                    self.config["GROUP_IDS"] = []
+                
+                if chat_id not in self.config["GROUP_IDS"]:
+                    self.config["GROUP_IDS"].append(chat_id)
+                
+                # Store the custom name
+                if "GROUP_NAMES" not in self.config:
+                    self.config["GROUP_NAMES"] = {}
+                self.config["GROUP_NAMES"][str(chat_id)] = custom_name
+                
+                # Clean up temp data
+                del self.config["TEMP_GROUP_ADD"]
+                self.save_config()
+                
+                # Add back button
+                keyboard = [[InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_panel")]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await message.reply_text(
+                    f"✅ Group added successfully!\n\n"
+                    f"Group: {custom_name}\n"
+                    f"ID: {chat_id}",
+                    reply_markup=reply_markup
+                )
+                return
         
         if self.is_admin(user.id):
             return
@@ -438,12 +499,8 @@ class WorkingBot:
                 is_assigned = group_id in current_assignments
                 status = "✅" if is_assigned else "❌"
                 
-                # Try to get group name from Telegram
-                try:
-                    group_chat = await context.bot.get_chat(int(group_id))
-                    group_name = group_chat.title or f"Group {group_id}"
-                except:
-                    group_name = f"Group {group_id}"
+                # Get group name using our method
+                group_name = await self.get_group_name(str(group_id), context)
                 
                 keyboard.append([InlineKeyboardButton(f"{status} {group_name}", callback_data=f"toggle_group_{client_id}_{group_id}")])
             
@@ -485,12 +542,8 @@ class WorkingBot:
                 is_assigned = gid in current_assignments
                 status = "✅" if is_assigned else "❌"
                 
-                # Try to get group name from Telegram
-                try:
-                    group_chat = await context.bot.get_chat(int(gid))
-                    group_name = group_chat.title or f"Group {gid}"
-                except:
-                    group_name = f"Group {gid}"
+                # Get group name using our method
+                group_name = await self.get_group_name(str(gid), context)
                 
                 keyboard.append([InlineKeyboardButton(f"{status} {group_name}", callback_data=f"toggle_group_{client_id}_{gid}")])
             
@@ -498,11 +551,7 @@ class WorkingBot:
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             # Get group name for confirmation message
-            try:
-                group_chat = await context.bot.get_chat(int(group_id))
-                group_name = group_chat.title or f"Group {group_id}"
-            except:
-                group_name = f"Group {group_id}"
+            group_name = await self.get_group_name(group_id, context)
             
             await query.edit_message_text(f"✅ Client {client_id} {action} {group_name}!\n\n🔗 Select groups for client {client_id}:\n\n✅ = Assigned\n❌ = Not Assigned", reply_markup=reply_markup)
         
@@ -572,12 +621,8 @@ class WorkingBot:
             else:
                 text = "🏢 Group Management\n\nCurrently assigned groups:\n"
                 for i, group_id in enumerate(current_groups, 1):
-                    # Try to get group name from Telegram
-                    try:
-                        group_chat = await context.bot.get_chat(int(group_id))
-                        group_name = group_chat.title or f"Group {group_id}"
-                    except:
-                        group_name = f"Group {group_id}"
+                    # Get group name using our method
+                    group_name = await self.get_group_name(str(group_id), context)
                     text += f"{i}. {group_name} (ID: {group_id})\n"
                 text += "\nTo add this chat as a group:\n1. Make sure the bot is added to the group\n2. Click '➕ Add This Chat' below"
                 
@@ -601,17 +646,107 @@ class WorkingBot:
                 await query.edit_message_text("✅ This chat is already authorized!")
                 return
             
+            # Store the chat_id temporarily for name input
+            if "TEMP_GROUP_ADD" not in self.config:
+                self.config["TEMP_GROUP_ADD"] = {}
+            
+            self.config["TEMP_GROUP_ADD"]["pending_chat_id"] = chat_id
+            self.save_config()
+            
+            # Show options for adding the group
+            keyboard = [
+                [InlineKeyboardButton("✅ Add with Auto Name", callback_data=f"add_group_auto_{chat_id}")],
+                [InlineKeyboardButton("✏️ Add with Custom Name", callback_data=f"add_group_custom_{chat_id}")],
+                [InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_panel")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Try to get current group name
+            try:
+                group_chat = await context.bot.get_chat(chat_id)
+                current_name = group_chat.title or f"Group {chat_id}"
+            except:
+                current_name = f"Group {chat_id}"
+            
+            await query.edit_message_text(
+                f"🏢 Add Group\n\n"
+                f"Current Group: {current_name}\n"
+                f"Group ID: {chat_id}\n\n"
+                f"Choose how to add this group:\n"
+                f"✅ Auto Name - Use Telegram group name\n"
+                f"✏️ Custom Name - Set your own name",
+                reply_markup=reply_markup
+            )
+        
+        elif query.data.startswith("add_group_auto_"):
+            if not self.is_admin(query.from_user.id):
+                await query.edit_message_text("❌ Admin access required!")
+                return
+            
+            chat_id = int(query.data.split("_")[3])
+            
+            # Add to GROUP_IDS
             if "GROUP_IDS" not in self.config:
                 self.config["GROUP_IDS"] = []
             
-            self.config["GROUP_IDS"].append(chat_id)
+            if chat_id not in self.config["GROUP_IDS"]:
+                self.config["GROUP_IDS"].append(chat_id)
+            
+            # Try to get and store the group name
+            try:
+                group_chat = await context.bot.get_chat(chat_id)
+                group_name = group_chat.title or f"Group {chat_id}"
+                
+                # Store the name
+                if "GROUP_NAMES" not in self.config:
+                    self.config["GROUP_NAMES"] = {}
+                self.config["GROUP_NAMES"][str(chat_id)] = group_name
+            except:
+                group_name = f"Group {chat_id}"
+            
             self.save_config()
+            
+            # Clean up temp data
+            if "TEMP_GROUP_ADD" in self.config:
+                del self.config["TEMP_GROUP_ADD"]
+                self.save_config()
             
             # Add back button
             keyboard = [[InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_panel")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await query.edit_message_text(f"✅ Chat added as authorized group!\n\nChat ID: {chat_id}", reply_markup=reply_markup)
+            await query.edit_message_text(
+                f"✅ Group added successfully!\n\n"
+                f"Group: {group_name}\n"
+                f"ID: {chat_id}",
+                reply_markup=reply_markup
+            )
+        
+        elif query.data.startswith("add_group_custom_"):
+            if not self.is_admin(query.from_user.id):
+                await query.edit_message_text("❌ Admin access required!")
+                return
+            
+            chat_id = int(query.data.split("_")[3])
+            
+            # Store chat_id for name input
+            if "TEMP_GROUP_ADD" not in self.config:
+                self.config["TEMP_GROUP_ADD"] = {}
+            
+            self.config["TEMP_GROUP_ADD"]["pending_chat_id"] = chat_id
+            self.config["TEMP_GROUP_ADD"]["waiting_for_name"] = True
+            self.save_config()
+            
+            # Add back button
+            keyboard = [[InlineKeyboardButton("🔙 Cancel", callback_data="admin_panel")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                f"✏️ Set Custom Group Name\n\n"
+                f"Group ID: {chat_id}\n\n"
+                f"Please send the custom name for this group:",
+                reply_markup=reply_markup
+            )
         
         elif query.data == "admin_delete_groups":
             if not self.is_admin(query.from_user.id):
@@ -627,12 +762,8 @@ class WorkingBot:
             # Create delete buttons for each group
             keyboard = []
             for i, group_id in enumerate(current_groups, 1):
-                # Try to get group name from Telegram
-                try:
-                    group_chat = await context.bot.get_chat(int(group_id))
-                    group_name = group_chat.title or f"Group {group_id}"
-                except:
-                    group_name = f"Group {group_id}"
+                # Get group name using our method
+                group_name = await self.get_group_name(str(group_id), context)
                 keyboard.append([InlineKeyboardButton(f"🗑️ Delete {group_name}", callback_data=f"delete_group_{group_id}")])
             
             keyboard.append([InlineKeyboardButton("🔙 Back to Group Management", callback_data="admin_assign_group_chat")])
@@ -658,11 +789,7 @@ class WorkingBot:
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
                 # Get group name for confirmation message
-                try:
-                    group_chat = await context.bot.get_chat(group_id)
-                    group_name = group_chat.title or f"Group {group_id}"
-                except:
-                    group_name = f"Group {group_id}"
+                group_name = await self.get_group_name(str(group_id), context)
                 
                 await query.edit_message_text(f"✅ {group_name} deleted successfully!", reply_markup=reply_markup)
             else:
@@ -1045,31 +1172,56 @@ class WorkingBot:
         await update.message.reply_text("✅ Group added as authorized broadcast group!")
     
     async def set_alias_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Admin command to set client alias"""
-        if not self.is_admin(update.effective_user.id):
+        """Set alias for a client"""
+        if not self.is_admin(update.message.from_user.id):
             await update.message.reply_text("❌ Admin access required!")
             return
         
-        # Only allow in private chat
-        if update.effective_chat.type != "private":
-            await update.message.reply_text("❌ This command can only be used in private chat with the bot!")
-            return
-        
         if not context.args or len(context.args) < 2:
-            await update.message.reply_text("❌ Usage: /setalias CLNT_xxxx Alias Name")
+            await update.message.reply_text("❌ Usage: /setalias <client_id> <alias>")
             return
         
-        client_id = context.args[0]
+        client_id = context.args[0].upper()
         alias = " ".join(context.args[1:])
         
         if client_id not in self.client_data:
-            await update.message.reply_text("❌ Client ID not found!")
+            await update.message.reply_text("❌ Client not found!")
             return
         
-        self.client_data[client_id]["alias"] = alias
+        # Update client data with alias
+        if "aliases" not in self.client_data[client_id]:
+            self.client_data[client_id]["aliases"] = {}
+        
+        self.client_data[client_id]["aliases"]["custom"] = alias
         self.save_client_data()
         
-        await update.message.reply_text(f"✅ Alias set: {client_id} → {alias}")
+        await update.message.reply_text(f"✅ Alias set for {client_id}: {alias}")
+    
+    async def set_group_name_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Set custom name for a group"""
+        if not self.is_admin(update.message.from_user.id):
+            await update.message.reply_text("❌ Admin access required!")
+            return
+        
+        if not context.args or len(context.args) < 2:
+            await update.message.reply_text("❌ Usage: /setgroupname <group_id> <name>")
+            return
+        
+        group_id = context.args[0]
+        group_name = " ".join(context.args[1:])
+        
+        if group_id not in self.config.get("GROUP_IDS", []):
+            await update.message.reply_text("❌ Group not found in authorized groups!")
+            return
+        
+        # Store the custom group name
+        if "GROUP_NAMES" not in self.config:
+            self.config["GROUP_NAMES"] = {}
+        
+        self.config["GROUP_NAMES"][group_id] = group_name
+        self.save_config()
+        
+        await update.message.reply_text(f"✅ Group name set for {group_id}: {group_name}")
     
     async def get_info_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Admin command to get client information"""
@@ -1223,6 +1375,7 @@ For full admin features, use /help in private chat with the bot.
 • /listclients - List all registered clients
 • /getinfo <client_id> - Get client details
 • /setalias <client_id> <alias> - Set client alias
+• /setgroupname <group_id> <name> - Set custom group name
 • /assigngroup - Add current group as authorized
 
 🔐 **Security Commands:**
@@ -1257,6 +1410,7 @@ def main():
     application.add_handler(CommandHandler("reject", bot.reject_client_command))
     application.add_handler(CommandHandler("pending", bot.pending_clients_command))
     application.add_handler(CommandHandler("setalias", bot.set_alias_command))
+    application.add_handler(CommandHandler("setgroupname", bot.set_group_name_command))
     application.add_handler(CommandHandler("getinfo", bot.get_info_command))
     application.add_handler(CommandHandler("listclients", bot.list_clients_command))
     application.add_handler(CommandHandler("admin", bot.admin_panel_command))

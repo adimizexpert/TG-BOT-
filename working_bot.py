@@ -43,7 +43,8 @@ class WorkingBot:
         self.config = self.load_config()
         self.client_data = self.load_client_data()
         self.pending_replies = {}
-        # Initialize client-group assignments if not exists
+        
+        # Initialize client-group assignments if not exists (ONE-TO-ONE SYSTEM)
         if "CLIENT_GROUP_ASSIGNMENTS" not in self.config:
             self.config["CLIENT_GROUP_ASSIGNMENTS"] = {}
             self.save_config()
@@ -61,6 +62,16 @@ class WorkingBot:
         # Initialize admin-only groups if not exists
         if "ADMIN_ONLY_GROUPS" not in self.config:
             self.config["ADMIN_ONLY_GROUPS"] = []
+            self.save_config()
+        
+        # Initialize message tracking for replies (NEW SYSTEM)
+        if "MESSAGE_LINK_MAP" not in self.config:
+            self.config["MESSAGE_LINK_MAP"] = {}
+            self.save_config()
+        
+        # Initialize client-to-group mapping (ONE-TO-ONE)
+        if "CLIENT_GROUP_MAP" not in self.config:
+            self.config["CLIENT_GROUP_MAP"] = {}
             self.save_config()
     
     def load_config(self) -> Dict:
@@ -159,7 +170,7 @@ class WorkingBot:
             self.save_config()
     
     async def handle_private_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle messages from clients"""
+        """Handle messages from clients - ONE-TO-ONE SYSTEM"""
         message = update.message
         user = message.from_user
         
@@ -246,18 +257,17 @@ class WorkingBot:
             username = f"User{telegram_id}"
         
         # For group chats, show only first 3 characters of username
-        # For admin private chat, show full username
         username_preview = username[:3] if len(username) >= 3 else username
         client_display = f"@{username_preview}"
         
-        # Get assigned groups for this client
-        assigned_groups = self.config.get("CLIENT_GROUP_ASSIGNMENTS", {}).get(client_id, [])
+        # ONE-TO-ONE SYSTEM: Get assigned group for this client
+        assigned_group = self.config.get("CLIENT_GROUP_MAP", {}).get(client_id)
         
-        # Forward to admin IDs (private chats) AND assigned groups
+        # Forward to admin IDs (private chats) AND assigned group
         admin_ids = self.config.get("ADMIN_IDS", [])
         
-        print(f"🔍 Debug: Client {client_id} assigned to groups: {assigned_groups}")
-        print(f"🔍 Debug: Forwarding to {len(admin_ids)} admin IDs and {len(assigned_groups)} assigned groups")
+        print(f"🔍 Debug: Client {client_id} assigned to group: {assigned_group}")
+        print(f"🔍 Debug: Forwarding to {len(admin_ids)} admin IDs and assigned group: {assigned_group}")
         
         # Forward to admin IDs (private chats)
         for admin_id in admin_ids:
@@ -310,61 +320,81 @@ class WorkingBot:
                 print(f"❌ Debug: Error forwarding to admin {admin_id}: {e}")
                 logger.error(f"Error forwarding to admin {admin_id}: {e}")
         
-        # Forward to assigned groups
-        for group_id in assigned_groups:
+        # Forward to assigned group (ONE-TO-ONE SYSTEM)
+        if assigned_group:
             try:
-                print(f"🔍 Debug: Attempting to forward to assigned group {group_id}")
+                print(f"🔍 Debug: Attempting to forward to assigned group {assigned_group}")
                 caption = f"📩 Message from: {client_display}"
                 
                 if message.text:
-                    await context.bot.send_message(
-                        chat_id=int(group_id),
+                    forwarded_msg = await context.bot.send_message(
+                        chat_id=int(assigned_group),
                         text=f"{caption}\n\n{message.text}"
                     )
-                    print(f"✅ Debug: Successfully forwarded text message to group {group_id}")
+                    # Track the forwarded message for replies
+                    self.config["MESSAGE_LINK_MAP"][f"{assigned_group}_{forwarded_msg.message_id}"] = client_id
+                    self.save_config()
+                    print(f"✅ Debug: Successfully forwarded text message to group {assigned_group}")
                 elif message.photo:
-                    await context.bot.send_photo(
-                        chat_id=int(group_id),
+                    forwarded_msg = await context.bot.send_photo(
+                        chat_id=int(assigned_group),
                         photo=message.photo[-1].file_id,
                         caption=caption
                     )
-                    print(f"✅ Debug: Successfully forwarded photo to group {group_id}")
+                    # Track the forwarded message for replies
+                    self.config["MESSAGE_LINK_MAP"][f"{assigned_group}_{forwarded_msg.message_id}"] = client_id
+                    self.save_config()
+                    print(f"✅ Debug: Successfully forwarded photo to group {assigned_group}")
                 elif message.video:
-                    await context.bot.send_video(
-                        chat_id=int(group_id),
+                    forwarded_msg = await context.bot.send_video(
+                        chat_id=int(assigned_group),
                         video=message.video.file_id,
                         caption=caption
                     )
-                    print(f"✅ Debug: Successfully forwarded video to group {group_id}")
+                    # Track the forwarded message for replies
+                    self.config["MESSAGE_LINK_MAP"][f"{assigned_group}_{forwarded_msg.message_id}"] = client_id
+                    self.save_config()
+                    print(f"✅ Debug: Successfully forwarded video to group {assigned_group}")
                 elif message.audio:
-                    await context.bot.send_audio(
-                        chat_id=int(group_id),
+                    forwarded_msg = await context.bot.send_audio(
+                        chat_id=int(assigned_group),
                         audio=message.audio.file_id,
                         caption=caption
                     )
-                    print(f"✅ Debug: Successfully forwarded audio to group {group_id}")
+                    # Track the forwarded message for replies
+                    self.config["MESSAGE_LINK_MAP"][f"{assigned_group}_{forwarded_msg.message_id}"] = client_id
+                    self.save_config()
+                    print(f"✅ Debug: Successfully forwarded audio to group {assigned_group}")
                 elif message.document:
-                    await context.bot.send_document(
-                        chat_id=int(group_id),
+                    forwarded_msg = await context.bot.send_document(
+                        chat_id=int(assigned_group),
                         document=message.document.file_id,
                         caption=caption
                     )
-                    print(f"✅ Debug: Successfully forwarded document to group {group_id}")
+                    # Track the forwarded message for replies
+                    self.config["MESSAGE_LINK_MAP"][f"{assigned_group}_{forwarded_msg.message_id}"] = client_id
+                    self.save_config()
+                    print(f"✅ Debug: Successfully forwarded document to group {assigned_group}")
                 elif message.voice:
-                    await context.bot.send_voice(
-                        chat_id=int(group_id),
+                    forwarded_msg = await context.bot.send_voice(
+                        chat_id=int(assigned_group),
                         voice=message.voice.file_id,
                         caption=caption
                     )
-                    print(f"✅ Debug: Successfully forwarded voice to group {group_id}")
+                    # Track the forwarded message for replies
+                    self.config["MESSAGE_LINK_MAP"][f"{assigned_group}_{forwarded_msg.message_id}"] = client_id
+                    self.save_config()
+                    print(f"✅ Debug: Successfully forwarded voice to group {assigned_group}")
             except Exception as e:
-                print(f"❌ Debug: Error forwarding to group {group_id}: {e}")
-                logger.error(f"Error forwarding to group {group_id}: {e}")
+                print(f"❌ Debug: Error forwarding to group {assigned_group}: {e}")
+                logger.error(f"Error forwarding to group {assigned_group}: {e}")
+        else:
+            print(f"⚠️ Debug: Client {client_id} has no assigned group")
         
         await message.reply_text("✅ Message received!")
     
     async def handle_group_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle messages from groups and forward to all clients"""
+        """Handle messages from groups - REPLY ROUTING SYSTEM"""
         message = update.message
         chat_id = message.chat.id
         
@@ -380,56 +410,77 @@ class WorkingBot:
         print(f"🔍 Debug: Message from user: {message.from_user.id}")
         print(f"🔍 Debug: Message text: {message.text}")
         
-        # Forward to all clients
-        for client_id, client_data in self.client_data.items():
-            client_telegram_id = client_data.get("telegram_id")
-            if not client_telegram_id:
-                continue
+        # Check if this is a reply to a forwarded message
+        if message.reply_to_message:
+            print(f"🔍 Debug: This is a reply to message ID: {message.reply_to_message.message_id}")
             
-            try:
-                # Get sender info
-                sender_name = message.from_user.first_name or message.from_user.username or f"User{message.from_user.id}"
+            # Look up the original client for this message
+            message_key = f"{chat_id}_{message.reply_to_message.message_id}"
+            original_client_id = self.config.get("MESSAGE_LINK_MAP", {}).get(message_key)
+            
+            if original_client_id:
+                print(f"🔍 Debug: Found original client: {original_client_id}")
                 
-                if message.text:
-                    await context.bot.send_message(
-                        chat_id=client_telegram_id,
-                        text=message.text
-                    )
-                    print(f"✅ Debug: Forwarded text to client {client_telegram_id}")
-                elif message.photo:
-                    await context.bot.send_photo(
-                        chat_id=client_telegram_id,
-                        photo=message.photo[-1].file_id
-                    )
-                    print(f"✅ Debug: Forwarded photo to client {client_telegram_id}")
-                elif message.video:
-                    await context.bot.send_video(
-                        chat_id=client_telegram_id,
-                        video=message.video.file_id
-                    )
-                    print(f"✅ Debug: Forwarded video to client {client_telegram_id}")
-                elif message.audio:
-                    await context.bot.send_audio(
-                        chat_id=client_telegram_id,
-                        audio=message.audio.file_id
-                    )
-                    print(f"✅ Debug: Forwarded audio to client {client_telegram_id}")
-                elif message.document:
-                    await context.bot.send_document(
-                        chat_id=client_telegram_id,
-                        document=message.document.file_id
-                    )
-                    print(f"✅ Debug: Forwarded document to client {client_telegram_id}")
-                elif message.voice:
-                    await context.bot.send_voice(
-                        chat_id=client_telegram_id,
-                        voice=message.voice.file_id
-                    )
-                    print(f"✅ Debug: Forwarded voice to client {client_telegram_id}")
-                
-            except Exception as e:
-                print(f"❌ Debug: Error forwarding to client {client_telegram_id}: {e}")
-                logger.error(f"Error forwarding to client {client_telegram_id}: {e}")
+                # Get the client's telegram ID
+                client_telegram_id = self.client_data.get(original_client_id, {}).get("telegram_id")
+                if client_telegram_id:
+                    try:
+                        # Get sender info
+                        sender_name = message.from_user.first_name or message.from_user.username or f"User{message.from_user.id}"
+                        reply_caption = f"💬 Reply from {sender_name} in group"
+                        
+                        # Send reply only to the original client
+                        if message.text:
+                            await context.bot.send_message(
+                                chat_id=client_telegram_id,
+                                text=f"{reply_caption}\n\n{message.text}"
+                            )
+                            print(f"✅ Debug: Forwarded reply to original client {client_telegram_id}")
+                        elif message.photo:
+                            await context.bot.send_photo(
+                                chat_id=client_telegram_id,
+                                photo=message.photo[-1].file_id,
+                                caption=reply_caption
+                            )
+                            print(f"✅ Debug: Forwarded photo reply to original client {client_telegram_id}")
+                        elif message.video:
+                            await context.bot.send_video(
+                                chat_id=client_telegram_id,
+                                video=message.video.file_id,
+                                caption=reply_caption
+                            )
+                            print(f"✅ Debug: Forwarded video reply to original client {client_telegram_id}")
+                        elif message.audio:
+                            await context.bot.send_audio(
+                                chat_id=client_telegram_id,
+                                audio=message.audio.file_id,
+                                caption=reply_caption
+                            )
+                            print(f"✅ Debug: Forwarded audio reply to original client {client_telegram_id}")
+                        elif message.document:
+                            await context.bot.send_document(
+                                chat_id=client_telegram_id,
+                                document=message.document.file_id,
+                                caption=reply_caption
+                            )
+                            print(f"✅ Debug: Forwarded document reply to original client {client_telegram_id}")
+                        elif message.voice:
+                            await context.bot.send_voice(
+                                chat_id=client_telegram_id,
+                                voice=message.voice.file_id,
+                                caption=reply_caption
+                            )
+                            print(f"✅ Debug: Forwarded voice reply to original client {client_telegram_id}")
+                        
+                    except Exception as e:
+                        print(f"❌ Debug: Error forwarding reply to client {client_telegram_id}: {e}")
+                        logger.error(f"Error forwarding reply to client {client_telegram_id}: {e}")
+                else:
+                    print(f"⚠️ Debug: Could not find telegram ID for client {original_client_id}")
+            else:
+                print(f"⚠️ Debug: No original client found for message {message.reply_to_message.message_id}")
+        else:
+            print(f"⚠️ Debug: Message is not a reply, ignoring")
     
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle button callbacks"""
@@ -615,8 +666,8 @@ class WorkingBot:
                 await query.edit_message_text("❌ Client not found!")
                 return
             
-            # Get current assignments for this client
-            current_assignments = self.config.get("CLIENT_GROUP_ASSIGNMENTS", {}).get(client_id, [])
+            # Get current assignment for this client (ONE-TO-ONE SYSTEM)
+            current_assignment = self.config.get("CLIENT_GROUP_MAP", {}).get(client_id)
             
             # Only show groups that actually exist in GROUP_IDS
             available_groups = self.config.get("GROUP_IDS", [])
@@ -628,8 +679,15 @@ class WorkingBot:
             # Create group selection buttons
             keyboard = []
             for group_id in available_groups:
-                is_assigned = str(group_id) in current_assignments
-                status = "✅" if is_assigned else "❌"
+                is_assigned = str(group_id) in self.config.get("CLIENT_GROUP_MAP", {}).values()
+                is_assigned_to_this_client = current_assignment == str(group_id)
+                
+                if is_assigned_to_this_client:
+                    status = "✅ (This Client)"
+                elif is_assigned:
+                    status = "✅ (Other Client)"
+                else:
+                    status = "❌ (Available)"
                 
                 # Get group name using our method
                 group_name = await self.get_group_name(str(group_id), context)
@@ -639,7 +697,14 @@ class WorkingBot:
             keyboard.append([InlineKeyboardButton("🔙 Back to Client Selection", callback_data="admin_assign_client_groups")])
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await query.edit_message_text(f"🔗 Select groups for client {client_id}:\n\n✅ = Assigned\n❌ = Not Assigned\n\nAvailable groups:", reply_markup=reply_markup)
+            await query.edit_message_text(
+                f"🔗 Select group for client {client_id} (ONE-TO-ONE SYSTEM):\n\n"
+                f"✅ (This Client) = Currently assigned to this client\n"
+                f"✅ (Other Client) = Assigned to another client\n"
+                f"❌ (Available) = Available for assignment\n\n"
+                f"Available groups:",
+                reply_markup=reply_markup
+            )
         
         elif query.data.startswith("toggle_group_"):
             if not self.is_admin(query.from_user.id):
@@ -650,28 +715,41 @@ class WorkingBot:
             client_id = parts[2]
             group_id = parts[3]
             
-            # Initialize if not exists
-            if "CLIENT_GROUP_ASSIGNMENTS" not in self.config:
-                self.config["CLIENT_GROUP_ASSIGNMENTS"] = {}
+            # ONE-TO-ONE SYSTEM: Initialize if not exists
+            if "CLIENT_GROUP_MAP" not in self.config:
+                self.config["CLIENT_GROUP_MAP"] = {}
             
-            if client_id not in self.config["CLIENT_GROUP_ASSIGNMENTS"]:
-                self.config["CLIENT_GROUP_ASSIGNMENTS"][client_id] = []
+            # Check if this group is already assigned to another client
+            current_assignments = self.config["CLIENT_GROUP_MAP"]
+            for existing_client, existing_group in current_assignments.items():
+                if existing_group == str(group_id) and existing_client != client_id:
+                    # Get group name for error message
+                    group_name = await self.get_group_name(str(group_id), context)
+                    await query.edit_message_text(
+                        f"❌ Group {group_name} is already assigned to another client!\n\n"
+                        f"Please unassign it from the other client first.",
+                        reply_markup=InlineKeyboardMarkup([[
+                            InlineKeyboardButton("🔙 Back to Client Selection", callback_data="admin_assign_client_groups")
+                        ]])
+                    )
+                    return
             
-            # Toggle assignment
-            if str(group_id) in self.config["CLIENT_GROUP_ASSIGNMENTS"][client_id]:
-                self.config["CLIENT_GROUP_ASSIGNMENTS"][client_id].remove(str(group_id))
+            # Toggle assignment (ONE-TO-ONE)
+            if client_id in self.config["CLIENT_GROUP_MAP"] and self.config["CLIENT_GROUP_MAP"][client_id] == str(group_id):
+                # Remove assignment
+                del self.config["CLIENT_GROUP_MAP"][client_id]
                 action = "removed from"
             else:
-                self.config["CLIENT_GROUP_ASSIGNMENTS"][client_id].append(str(group_id))
+                # Add assignment (will replace any existing assignment for this client)
+                self.config["CLIENT_GROUP_MAP"][client_id] = str(group_id)
                 action = "assigned to"
             
             self.save_config()
             
             # Refresh the group selection view
-            current_assignments = self.config["CLIENT_GROUP_ASSIGNMENTS"][client_id]
             keyboard = []
             for gid in self.config.get("GROUP_IDS", []):
-                is_assigned = str(gid) in current_assignments
+                is_assigned = str(gid) in self.config["CLIENT_GROUP_MAP"].values()
                 status = "✅" if is_assigned else "❌"
                 
                 # Get group name using our method
@@ -685,7 +763,13 @@ class WorkingBot:
             # Get group name for confirmation message
             group_name = await self.get_group_name(str(group_id), context)
             
-            await query.edit_message_text(f"✅ Client {client_id} {action} {group_name}!\n\n🔗 Select groups for client {client_id}:\n\n✅ = Assigned\n❌ = Not Assigned", reply_markup=reply_markup)
+            await query.edit_message_text(
+                f"✅ Client {client_id} {action} {group_name}!\n\n"
+                f"🔗 Select group for client {client_id} (ONE-TO-ONE SYSTEM):\n\n"
+                f"✅ = Assigned to any client\n"
+                f"❌ = Available for assignment",
+                reply_markup=reply_markup
+            )
         
         elif query.data == "admin_get_info":
             if not self.is_admin(query.from_user.id):
@@ -952,13 +1036,13 @@ class WorkingBot:
 📋 List Clients - View all registered clients
 ➕ Add Group - Add current group as authorized
 🔗 Assign Client to Groups - Assign specific groups to clients
-🗑️ Delete Clients - Remove unwanted clients
-⏳ Pending Clients - Approve/reject new clients
+🗑️ Delete Groups - Remove unwanted groups
 
 📝 **Text Commands (Type to use):**
 • /listclients - List all registered clients
 • /getinfo <client_id> - Get client details
 • /setalias <client_id> <alias> - Set client alias
+• /setgroupname <group_id> <name> - Set custom group name
 • /assigngroup - Add current group as authorized
 
 🔐 **Security Commands:**
@@ -966,36 +1050,9 @@ class WorkingBot:
 • /approve <telegram_id> - Approve a client
 • /reject <telegram_id> - Reject a client
 
-🏢 **Group Management:**
-• View all assigned groups
-• Add new groups from any chat
-• Delete unwanted groups
-• Assign clients to specific groups
-
-💡 **Quick Tips:**
-• Use buttons for easy navigation
-• Use text commands for quick access
-• All commands work in private chat only
-                """
-                
-                await update.message.reply_text(help_text, reply_markup=reply_markup)
-            else:
-                # In groups, show group-specific help
-                help_text = """
-🔧 Admin Commands in Groups
-
-Available commands in this group:
-• /assigngroup - Add this group as authorized (with name options)
-• /help - Show this help message
-
-📝 **How to add this group:**
-1. Use /assigngroup command
-2. Choose "Auto Name" or "Custom Name"
-3. If custom name, type the name in private chat
-
-For full admin features, use /help in private chat with the bot.
-                """
-                await update.message.reply_text(help_text)
+Select an option below or use text commands directly!"""
+        
+            await update.message.reply_text(admin_text, reply_markup=reply_markup)
         else:
             help_text = """
 💬 Welcome! Send me any message and I'll forward it to the team.

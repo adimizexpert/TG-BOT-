@@ -57,6 +57,11 @@ class WorkingBot:
         if "GROUP_NAMES" not in self.config:
             self.config["GROUP_NAMES"] = {}
             self.save_config()
+        
+        # Initialize admin-only groups if not exists
+        if "ADMIN_ONLY_GROUPS" not in self.config:
+            self.config["ADMIN_ONLY_GROUPS"] = []
+            self.save_config()
     
     def load_config(self) -> Dict:
         try:
@@ -254,55 +259,57 @@ class WorkingBot:
         print(f"🔍 Debug: Client {client_id} assigned to groups: {assigned_groups}")
         print(f"🔍 Debug: Found {len(groups_to_forward)} groups to forward to: {groups_to_forward}")
         
-        for group_id in groups_to_forward:
+        # Forward to admin IDs only (private chats)
+        admin_ids = self.config.get("ADMIN_IDS", [])
+        for admin_id in admin_ids:
             try:
-                print(f"🔍 Debug: Attempting to forward to group {group_id}")
+                print(f"🔍 Debug: Attempting to forward to admin {admin_id}")
                 caption = f"📩 Message from: {client_display}"
                 
                 if message.text:
                     await context.bot.send_message(
-                        chat_id=group_id,
+                        chat_id=admin_id,
                         text=f"{caption}\n\n{message.text}"
                     )
-                    print(f"✅ Debug: Successfully forwarded text message to group {group_id}")
+                    print(f"✅ Debug: Successfully forwarded text message to admin {admin_id}")
                 elif message.photo:
                     await context.bot.send_photo(
-                        chat_id=group_id,
+                        chat_id=admin_id,
                         photo=message.photo[-1].file_id,
                         caption=caption
                     )
-                    print(f"✅ Debug: Successfully forwarded photo to group {group_id}")
+                    print(f"✅ Debug: Successfully forwarded photo to admin {admin_id}")
                 elif message.video:
                     await context.bot.send_video(
-                        chat_id=group_id,
+                        chat_id=admin_id,
                         video=message.video.file_id,
                         caption=caption
                     )
-                    print(f"✅ Debug: Successfully forwarded video to group {group_id}")
+                    print(f"✅ Debug: Successfully forwarded video to admin {admin_id}")
                 elif message.audio:
                     await context.bot.send_audio(
-                        chat_id=group_id,
+                        chat_id=admin_id,
                         audio=message.audio.file_id,
                         caption=caption
                     )
-                    print(f"✅ Debug: Successfully forwarded audio to group {group_id}")
+                    print(f"✅ Debug: Successfully forwarded audio to admin {admin_id}")
                 elif message.document:
                     await context.bot.send_document(
-                        chat_id=group_id,
+                        chat_id=admin_id,
                         document=message.document.file_id,
                         caption=caption
                     )
-                    print(f"✅ Debug: Successfully forwarded document to group {group_id}")
+                    print(f"✅ Debug: Successfully forwarded document to admin {admin_id}")
                 elif message.voice:
                     await context.bot.send_voice(
-                        chat_id=group_id,
+                        chat_id=admin_id,
                         voice=message.voice.file_id,
                         caption=caption
                     )
-                    print(f"✅ Debug: Successfully forwarded voice to group {group_id}")
+                    print(f"✅ Debug: Successfully forwarded voice to admin {admin_id}")
             except Exception as e:
-                print(f"❌ Debug: Error forwarding to group {group_id}: {e}")
-                logger.error(f"Error forwarding to group {group_id}: {e}")
+                print(f"❌ Debug: Error forwarding to admin {admin_id}: {e}")
+                logger.error(f"Error forwarding to admin {admin_id}: {e}")
         
         await message.reply_text("✅ Message received!")
     

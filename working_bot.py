@@ -253,14 +253,13 @@ class WorkingBot:
         # Get assigned groups for this client
         assigned_groups = self.config.get("CLIENT_GROUP_ASSIGNMENTS", {}).get(client_id, [])
         
-        # If no specific groups assigned, use all groups (backward compatibility)
-        groups_to_forward = assigned_groups if assigned_groups else self.config.get("GROUP_IDS", [])
+        # Only forward to admin IDs (private chats) - no group forwarding
+        admin_ids = self.config.get("ADMIN_IDS", [])
         
         print(f"🔍 Debug: Client {client_id} assigned to groups: {assigned_groups}")
-        print(f"🔍 Debug: Found {len(groups_to_forward)} groups to forward to: {groups_to_forward}")
+        print(f"🔍 Debug: Forwarding to {len(admin_ids)} admin IDs: {admin_ids}")
         
         # Forward to admin IDs only (private chats)
-        admin_ids = self.config.get("ADMIN_IDS", [])
         for admin_id in admin_ids:
             try:
                 print(f"🔍 Debug: Attempting to forward to admin {admin_id}")
@@ -500,10 +499,17 @@ class WorkingBot:
             # Get current assignments for this client
             current_assignments = self.config.get("CLIENT_GROUP_ASSIGNMENTS", {}).get(client_id, [])
             
+            # Only show groups that actually exist in GROUP_IDS
+            available_groups = self.config.get("GROUP_IDS", [])
+            
+            if not available_groups:
+                await query.edit_message_text("❌ No groups configured yet. Please add groups first.")
+                return
+            
             # Create group selection buttons
             keyboard = []
-            for group_id in self.config.get("GROUP_IDS", []):
-                is_assigned = group_id in current_assignments
+            for group_id in available_groups:
+                is_assigned = str(group_id) in current_assignments
                 status = "✅" if is_assigned else "❌"
                 
                 # Get group name using our method
@@ -514,7 +520,7 @@ class WorkingBot:
             keyboard.append([InlineKeyboardButton("🔙 Back to Client Selection", callback_data="admin_assign_client_groups")])
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await query.edit_message_text(f"🔗 Select groups for client {client_id}:\n\n✅ = Assigned\n❌ = Not Assigned", reply_markup=reply_markup)
+            await query.edit_message_text(f"🔗 Select groups for client {client_id}:\n\n✅ = Assigned\n❌ = Not Assigned\n\nAvailable groups:", reply_markup=reply_markup)
         
         elif query.data.startswith("toggle_group_"):
             if not self.is_admin(query.from_user.id):
@@ -533,11 +539,11 @@ class WorkingBot:
                 self.config["CLIENT_GROUP_ASSIGNMENTS"][client_id] = []
             
             # Toggle assignment
-            if group_id in self.config["CLIENT_GROUP_ASSIGNMENTS"][client_id]:
-                self.config["CLIENT_GROUP_ASSIGNMENTS"][client_id].remove(group_id)
+            if str(group_id) in self.config["CLIENT_GROUP_ASSIGNMENTS"][client_id]:
+                self.config["CLIENT_GROUP_ASSIGNMENTS"][client_id].remove(str(group_id))
                 action = "removed from"
             else:
-                self.config["CLIENT_GROUP_ASSIGNMENTS"][client_id].append(group_id)
+                self.config["CLIENT_GROUP_ASSIGNMENTS"][client_id].append(str(group_id))
                 action = "assigned to"
             
             self.save_config()
@@ -546,7 +552,7 @@ class WorkingBot:
             current_assignments = self.config["CLIENT_GROUP_ASSIGNMENTS"][client_id]
             keyboard = []
             for gid in self.config.get("GROUP_IDS", []):
-                is_assigned = gid in current_assignments
+                is_assigned = str(gid) in current_assignments
                 status = "✅" if is_assigned else "❌"
                 
                 # Get group name using our method
@@ -558,7 +564,7 @@ class WorkingBot:
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             # Get group name for confirmation message
-            group_name = await self.get_group_name(group_id, context)
+            group_name = await self.get_group_name(str(group_id), context)
             
             await query.edit_message_text(f"✅ Client {client_id} {action} {group_name}!\n\n🔗 Select groups for client {client_id}:\n\n✅ = Assigned\n❌ = Not Assigned", reply_markup=reply_markup)
         
@@ -833,7 +839,6 @@ class WorkingBot:
 • /listclients - List all registered clients
 • /getinfo <client_id> - Get client details
 • /setalias <client_id> <alias> - Set client alias
-• /setgroupname <group_id> <name> - Set custom group name
 • /assigngroup - Add current group as authorized
 
 🔐 **Security Commands:**

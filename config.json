@@ -11,13 +11,7 @@
   "GROUP_NAMES": {
     "-4983164991": "My Test Group"
   },
-  "CLIENT_GROUP_ASSIGNMENTS": {
-    "CLNT": [
-      "8257",
-      "5244",
-      "3455"
-    ]
-  },
+  "CLIENT_GROUP_ASSIGNMENTS": {},
   "PENDING_CLIENTS": {
     "7628229430": {
       "username": "Adimizexpert",

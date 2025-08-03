@@ -49,7 +49,7 @@ After=network.target
 Type=simple
 User=$USER
 WorkingDirectory=$BOT_DIR
-Environment=BOT_TOKEN=$(grep BOT_TOKEN .env | cut -d '=' -f2)
+Environment=BOT_TOKEN=\${BOT_TOKEN}
 ExecStart=$BOT_DIR/venv/bin/python working_bot.py
 Restart=always
 RestartSec=10

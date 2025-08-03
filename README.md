@@ -42,6 +42,7 @@ pip install -r requirements.txt
 # Setup environment
 cp .env.example .env
 # Edit .env with your BOT_TOKEN (keep this secret!)
+# Copy from .env.example and replace with your actual token
 
 # Run bot
 python working_bot.py

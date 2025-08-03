@@ -130,7 +130,7 @@ services:
 ## 🔧 Environment Variables
 
 ### Required:
-- `BOT_TOKEN`: Your Telegram bot token
+- `BOT_TOKEN`: Your Telegram bot token (keep this secret!)
 
 ### Optional:
 - `LOG_LEVEL`: INFO, DEBUG, WARNING

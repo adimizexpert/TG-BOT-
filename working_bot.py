@@ -253,13 +253,13 @@ class WorkingBot:
         # Get assigned groups for this client
         assigned_groups = self.config.get("CLIENT_GROUP_ASSIGNMENTS", {}).get(client_id, [])
         
-        # Only forward to admin IDs (private chats) - no group forwarding
+        # Forward to admin IDs (private chats) AND assigned groups
         admin_ids = self.config.get("ADMIN_IDS", [])
         
         print(f"🔍 Debug: Client {client_id} assigned to groups: {assigned_groups}")
-        print(f"🔍 Debug: Forwarding to {len(admin_ids)} admin IDs: {admin_ids}")
+        print(f"🔍 Debug: Forwarding to {len(admin_ids)} admin IDs and {len(assigned_groups)} assigned groups")
         
-        # Forward to admin IDs only (private chats)
+        # Forward to admin IDs (private chats)
         for admin_id in admin_ids:
             try:
                 print(f"🔍 Debug: Attempting to forward to admin {admin_id}")
@@ -309,6 +309,57 @@ class WorkingBot:
             except Exception as e:
                 print(f"❌ Debug: Error forwarding to admin {admin_id}: {e}")
                 logger.error(f"Error forwarding to admin {admin_id}: {e}")
+        
+        # Forward to assigned groups
+        for group_id in assigned_groups:
+            try:
+                print(f"🔍 Debug: Attempting to forward to assigned group {group_id}")
+                caption = f"📩 Message from: {client_display}"
+                
+                if message.text:
+                    await context.bot.send_message(
+                        chat_id=int(group_id),
+                        text=f"{caption}\n\n{message.text}"
+                    )
+                    print(f"✅ Debug: Successfully forwarded text message to group {group_id}")
+                elif message.photo:
+                    await context.bot.send_photo(
+                        chat_id=int(group_id),
+                        photo=message.photo[-1].file_id,
+                        caption=caption
+                    )
+                    print(f"✅ Debug: Successfully forwarded photo to group {group_id}")
+                elif message.video:
+                    await context.bot.send_video(
+                        chat_id=int(group_id),
+                        video=message.video.file_id,
+                        caption=caption
+                    )
+                    print(f"✅ Debug: Successfully forwarded video to group {group_id}")
+                elif message.audio:
+                    await context.bot.send_audio(
+                        chat_id=int(group_id),
+                        audio=message.audio.file_id,
+                        caption=caption
+                    )
+                    print(f"✅ Debug: Successfully forwarded audio to group {group_id}")
+                elif message.document:
+                    await context.bot.send_document(
+                        chat_id=int(group_id),
+                        document=message.document.file_id,
+                        caption=caption
+                    )
+                    print(f"✅ Debug: Successfully forwarded document to group {group_id}")
+                elif message.voice:
+                    await context.bot.send_voice(
+                        chat_id=int(group_id),
+                        voice=message.voice.file_id,
+                        caption=caption
+                    )
+                    print(f"✅ Debug: Successfully forwarded voice to group {group_id}")
+            except Exception as e:
+                print(f"❌ Debug: Error forwarding to group {group_id}: {e}")
+                logger.error(f"Error forwarding to group {group_id}: {e}")
         
         await message.reply_text("✅ Message received!")
     
@@ -832,548 +883,6 @@ class WorkingBot:
 📱 **Button Commands (Click to use):**
 📋 List Clients - View all registered clients
 ➕ Add Group - Add current group as authorized
-🔗 Assign Client to Groups - Assign specific groups to clients
-🗑️ Delete Groups - Remove unwanted groups
-
-📝 **Text Commands (Type to use):**
-• /listclients - List all registered clients
-• /getinfo <client_id> - Get client details
-• /setalias <client_id> <alias> - Set client alias
-• /assigngroup - Add current group as authorized
-
-🔐 **Security Commands:**
-• /pending - List pending clients for approval
-• /approve <telegram_id> - Approve a client
-• /reject <telegram_id> - Reject a client
-
-Select an option below or use text commands directly!"""
-            
-            await query.edit_message_text(admin_text, reply_markup=reply_markup)
-        
-        elif query.data.startswith("approve_"):
-            if not self.is_admin(query.from_user.id):
-                await query.edit_message_text("❌ Admin access required!")
-                return
-            
-            telegram_id = int(query.data.split("_", 1)[1])
-            pending_clients = self.config.get("PENDING_CLIENTS", {})
-            
-            if str(telegram_id) not in pending_clients:
-                await query.edit_message_text("❌ Client not found in pending list!")
-                return
-            
-            # Generate client ID and approve
-            client_id = self.generate_client_id()
-            self.client_data[client_id] = {
-                "telegram_id": telegram_id,
-                "status": "approved"
-            }
-            self.save_client_data()
-            
-            # Remove from pending
-            del pending_clients[str(telegram_id)]
-            self.config["PENDING_CLIENTS"] = pending_clients
-            self.save_config()
-            
-            # Get client info for display
-            client_info = pending_clients.get(str(telegram_id), {})
-            username = client_info.get("username", "Unknown")
-            
-            # Add back button
-            keyboard = [[InlineKeyboardButton("🔙 Back to Pending Clients", callback_data="admin_pending_clients")]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text(f"✅ Client @{username} approved successfully!\n\nClient ID: {client_id}", reply_markup=reply_markup)
-        
-        elif query.data.startswith("reject_"):
-            if not self.is_admin(query.from_user.id):
-                await query.edit_message_text("❌ Admin access required!")
-                return
-            
-            telegram_id = int(query.data.split("_", 1)[1])
-            pending_clients = self.config.get("PENDING_CLIENTS", {})
-            
-            if str(telegram_id) not in pending_clients:
-                await query.edit_message_text("❌ Client not found in pending list!")
-                return
-            
-            # Get client info for display
-            client_info = pending_clients.get(str(telegram_id), {})
-            username = client_info.get("username", "Unknown")
-            
-            # Remove from pending
-            del pending_clients[str(telegram_id)]
-            self.config["PENDING_CLIENTS"] = pending_clients
-            self.save_config()
-            
-            # Add back button
-            keyboard = [[InlineKeyboardButton("🔙 Back to Pending Clients", callback_data="admin_pending_clients")]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text(f"❌ Client @{username} rejected successfully!", reply_markup=reply_markup)
-        
-        elif query.data == "admin_pending_clients":
-            if not self.is_admin(query.from_user.id):
-                await query.edit_message_text("❌ Admin access required!")
-                return
-            
-            pending_clients = self.config.get("PENDING_CLIENTS", {})
-            
-            if not pending_clients:
-                await query.edit_message_text("📋 No pending clients")
-                return
-            
-            clients_text = "📋 Pending Clients:\n\n"
-            keyboard = []
-            
-            for telegram_id, data in pending_clients.items():
-                username = data.get("username", "None")
-                first_name = data.get("first_name", "None")
-                timestamp = data.get("timestamp", "Unknown")
-                clients_text += f"• ID: {telegram_id}\n"
-                clients_text += f"  Username: @{username}\n"
-                clients_text += f"  Name: {first_name}\n"
-                clients_text += f"  Time: {timestamp}\n\n"
-                
-                # Add approve/reject buttons for each client
-                keyboard.append([
-                    InlineKeyboardButton(f"✅ Approve {username}", callback_data=f"approve_{telegram_id}"),
-                    InlineKeyboardButton(f"❌ Reject {username}", callback_data=f"reject_{telegram_id}")
-                ])
-            
-            # Add back button
-            keyboard.append([InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_panel")])
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text(clients_text, reply_markup=reply_markup)
-        
-        elif query.data == "admin_delete_clients":
-            if not self.is_admin(query.from_user.id):
-                await query.edit_message_text("❌ Admin access required!")
-                return
-            
-            if not self.client_data:
-                await query.edit_message_text("📋 No clients registered yet.")
-                return
-            
-            # Create client selection buttons with usernames
-            keyboard = []
-            for client_id, data in self.client_data.items():
-                telegram_id = data.get("telegram_id", "")
-                # Try to get actual username from Telegram
-                try:
-                    user = await context.bot.get_chat(telegram_id)
-                    username = user.username or user.first_name or f"User{telegram_id}"
-                except:
-                    username = f"User{telegram_id}"
-                keyboard.append([InlineKeyboardButton(f"🗑️ @{username} ({client_id})", callback_data=f"delete_client_{client_id}")])
-            
-            keyboard.append([InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_panel")])
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text("🗑️ Delete Clients:\n\nSelect a client to delete:", reply_markup=reply_markup)
-        
-        elif query.data.startswith("delete_client_"):
-            if not self.is_admin(query.from_user.id):
-                await query.edit_message_text("❌ Admin access required!")
-                return
-            
-            client_id = query.data.split("_", 2)[2]
-            client_data = self.client_data.get(client_id)
-            
-            if not client_data:
-                await query.edit_message_text("❌ Client not found!")
-                return
-            
-            telegram_id = client_data.get("telegram_id", "Unknown")
-            # Try to get actual username from Telegram
-            try:
-                user = await context.bot.get_chat(telegram_id)
-                username = user.username or user.first_name or f"User{telegram_id}"
-            except:
-                username = f"User{telegram_id}"
-            
-            # Remove client from client_data
-            del self.client_data[client_id]
-            self.save_client_data()
-            
-            # Remove from group assignments if exists
-            if "CLIENT_GROUP_ASSIGNMENTS" in self.config:
-                if client_id in self.config["CLIENT_GROUP_ASSIGNMENTS"]:
-                    del self.config["CLIENT_GROUP_ASSIGNMENTS"][client_id]
-                    self.save_config()
-            
-            # Remove from pending clients if exists
-            if "PENDING_CLIENTS" in self.config:
-                if str(telegram_id) in self.config["PENDING_CLIENTS"]:
-                    del self.config["PENDING_CLIENTS"][str(telegram_id)]
-                    self.save_config()
-            
-            success_text = f"✅ Client deleted successfully!\n\n"
-            success_text += f"Deleted Client:\n"
-            success_text += f"• ID: {client_id}\n"
-            success_text += f"• Telegram ID: {telegram_id}\n"
-            success_text += f"• Username: @{username}"
-            
-            # Add back button
-            keyboard = [[InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_panel")]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await query.edit_message_text(success_text, reply_markup=reply_markup)
-    
-    async def handle_group_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle messages from groups and forward to all clients"""
-        message = update.message
-        chat_id = message.chat.id
-        
-        # Only process messages from authorized groups
-        if chat_id not in self.config.get("GROUP_IDS", []):
-            return
-        
-        # Skip bot messages
-        if message.from_user.is_bot:
-            return
-        
-        print(f"🔍 Debug: Received message from group {chat_id}")
-        print(f"🔍 Debug: Message from user: {message.from_user.id}")
-        print(f"🔍 Debug: Message text: {message.text}")
-        
-        # Forward to all clients
-        for client_id, client_data in self.client_data.items():
-            client_telegram_id = client_data.get("telegram_id")
-            if not client_telegram_id:
-                continue
-            
-            try:
-                # Get sender info
-                sender_name = message.from_user.first_name or message.from_user.username or f"User{message.from_user.id}"
-                
-                if message.text:
-                    await context.bot.send_message(
-                        chat_id=client_telegram_id,
-                        text=message.text
-                    )
-                    print(f"✅ Debug: Forwarded text to client {client_telegram_id}")
-                elif message.photo:
-                    await context.bot.send_photo(
-                        chat_id=client_telegram_id,
-                        photo=message.photo[-1].file_id
-                    )
-                    print(f"✅ Debug: Forwarded photo to client {client_telegram_id}")
-                elif message.video:
-                    await context.bot.send_video(
-                        chat_id=client_telegram_id,
-                        video=message.video.file_id
-                    )
-                    print(f"✅ Debug: Forwarded video to client {client_telegram_id}")
-                elif message.audio:
-                    await context.bot.send_audio(
-                        chat_id=client_telegram_id,
-                        audio=message.audio.file_id
-                    )
-                    print(f"✅ Debug: Forwarded audio to client {client_telegram_id}")
-                elif message.document:
-                    await context.bot.send_document(
-                        chat_id=client_telegram_id,
-                        document=message.document.file_id
-                    )
-                    print(f"✅ Debug: Forwarded document to client {client_telegram_id}")
-                elif message.voice:
-                    await context.bot.send_voice(
-                        chat_id=client_telegram_id,
-                        voice=message.voice.file_id
-                    )
-                    print(f"✅ Debug: Forwarded voice to client {client_telegram_id}")
-                
-            except Exception as e:
-                print(f"❌ Debug: Error forwarding to client {client_telegram_id}: {e}")
-                logger.error(f"Error forwarding to client {client_telegram_id}: {e}")
-    
-    async def handle_employee_reply(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle employee replies (kept for backward compatibility but not used)"""
-        # This function is kept for backward compatibility but the reply functionality is removed
-        pass
-    
-    async def approve_client_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Admin command to approve a client"""
-        if not self.is_admin(update.effective_user.id):
-            await update.message.reply_text("❌ Admin access required!")
-            return
-        
-        # Only allow in private chat
-        if update.effective_chat.type != "private":
-            await update.message.reply_text("❌ This command can only be used in private chat with the bot!")
-            return
-        
-        if not context.args:
-            await update.message.reply_text("❌ Usage: /approve <telegram_id>")
-            return
-        
-        try:
-            telegram_id = int(context.args[0])
-        except ValueError:
-            await update.message.reply_text("❌ Invalid Telegram ID!")
-            return
-        
-        # Check if client exists in pending
-        if not self.is_client_pending(telegram_id):
-            await update.message.reply_text("❌ Client not found in pending list!")
-            return
-        
-        # Create client ID and approve
-        client_id = self.generate_client_id()
-        self.client_data[client_id] = {
-            "telegram_id": telegram_id,
-            "status": "approved"
-        }
-        self.save_client_data()
-        
-        # Remove from pending
-        self.reject_client(telegram_id)
-        
-        await update.message.reply_text(f"✅ Client {telegram_id} approved with ID: {client_id}")
-    
-    async def reject_client_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Admin command to reject a client"""
-        if not self.is_admin(update.effective_user.id):
-            await update.message.reply_text("❌ Admin access required!")
-            return
-        
-        # Only allow in private chat
-        if update.effective_chat.type != "private":
-            await update.message.reply_text("❌ This command can only be used in private chat with the bot!")
-            return
-        
-        if not context.args:
-            await update.message.reply_text("❌ Usage: /reject <telegram_id>")
-            return
-        
-        try:
-            telegram_id = int(context.args[0])
-        except ValueError:
-            await update.message.reply_text("❌ Invalid Telegram ID!")
-            return
-        
-        # Check if client exists in pending
-        if not self.is_client_pending(telegram_id):
-            await update.message.reply_text("❌ Client not found in pending list!")
-            return
-        
-        # Remove from pending
-        self.reject_client(telegram_id)
-        
-        await update.message.reply_text(f"❌ Client {telegram_id} rejected")
-    
-    async def pending_clients_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Admin command to list pending clients"""
-        if not self.is_admin(update.effective_user.id):
-            await update.message.reply_text("❌ Admin access required!")
-            return
-        
-        # Only allow in private chat
-        if update.effective_chat.type != "private":
-            await update.message.reply_text("❌ This command can only be used in private chat with the bot!")
-            return
-        
-        pending_clients = self.config.get("PENDING_CLIENTS", {})
-        
-        if not pending_clients:
-            await update.message.reply_text("📋 No pending clients")
-            return
-        
-        clients_text = "📋 Pending Clients:\n\n"
-        keyboard = []
-        
-        for telegram_id, data in pending_clients.items():
-            username = data.get("username", "None")
-            first_name = data.get("first_name", "None")
-            timestamp = data.get("timestamp", "Unknown")
-            clients_text += f"• ID: {telegram_id}\n"
-            clients_text += f"  Username: @{username}\n"
-            clients_text += f"  Name: {first_name}\n"
-            clients_text += f"  Time: {timestamp}\n\n"
-            
-            # Add approve/reject buttons for each client
-            keyboard.append([
-                InlineKeyboardButton(f"✅ Approve {username}", callback_data=f"approve_{telegram_id}"),
-                InlineKeyboardButton(f"❌ Reject {username}", callback_data=f"reject_{telegram_id}")
-            ])
-        
-        # Add back button
-        keyboard.append([InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_panel")])
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await update.message.reply_text(clients_text, reply_markup=reply_markup)
-    
-    async def assign_group_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Admin command to assign group"""
-        if not self.is_admin(update.effective_user.id):
-            await update.message.reply_text("❌ Admin access required!")
-            return
-        
-        chat_id = update.effective_chat.id
-        
-        if chat_id in self.config.get("GROUP_IDS", []):
-            await update.message.reply_text("✅ Group already authorized!")
-            return
-        
-        # Store the chat_id temporarily for name input
-        if "TEMP_GROUP_ADD" not in self.config:
-            self.config["TEMP_GROUP_ADD"] = {}
-        
-        self.config["TEMP_GROUP_ADD"]["pending_chat_id"] = chat_id
-        self.save_config()
-        
-        # Show options for adding the group
-        keyboard = [
-            [InlineKeyboardButton("✅ Add with Auto Name", callback_data=f"add_group_auto_{chat_id}")],
-            [InlineKeyboardButton("✏️ Add with Custom Name", callback_data=f"add_group_custom_{chat_id}")],
-            [InlineKeyboardButton("🔙 Cancel", callback_data="admin_panel")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        # Try to get current group name
-        try:
-            group_chat = await context.bot.get_chat(chat_id)
-            current_name = group_chat.title or f"Group {chat_id}"
-        except:
-            current_name = f"Group {chat_id}"
-        
-        await update.message.reply_text(
-            f"🏢 Add Group\n\n"
-            f"Current Group: {current_name}\n"
-            f"Group ID: {chat_id}\n\n"
-            f"Choose how to add this group:\n"
-            f"✅ Auto Name - Use Telegram group name\n"
-            f"✏️ Custom Name - Set your own name",
-            reply_markup=reply_markup
-        )
-    
-    async def set_alias_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Set alias for a client"""
-        if not self.is_admin(update.message.from_user.id):
-            await update.message.reply_text("❌ Admin access required!")
-            return
-        
-        if not context.args or len(context.args) < 2:
-            await update.message.reply_text("❌ Usage: /setalias <client_id> <alias>")
-            return
-        
-        client_id = context.args[0].upper()
-        alias = " ".join(context.args[1:])
-        
-        if client_id not in self.client_data:
-            await update.message.reply_text("❌ Client not found!")
-            return
-        
-        # Update client data with alias
-        if "aliases" not in self.client_data[client_id]:
-            self.client_data[client_id]["aliases"] = {}
-        
-        self.client_data[client_id]["aliases"]["custom"] = alias
-        self.save_client_data()
-        
-        await update.message.reply_text(f"✅ Alias set for {client_id}: {alias}")
-    
-    async def set_group_name_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Set custom name for a group"""
-        if not self.is_admin(update.message.from_user.id):
-            await update.message.reply_text("❌ Admin access required!")
-            return
-        
-        if not context.args or len(context.args) < 2:
-            await update.message.reply_text("❌ Usage: /setgroupname <group_id> <name>")
-            return
-        
-        group_id = context.args[0]
-        group_name = " ".join(context.args[1:])
-        
-        if group_id not in self.config.get("GROUP_IDS", []):
-            await update.message.reply_text("❌ Group not found in authorized groups!")
-            return
-        
-        # Store the custom group name
-        if "GROUP_NAMES" not in self.config:
-            self.config["GROUP_NAMES"] = {}
-        
-        self.config["GROUP_NAMES"][group_id] = group_name
-        self.save_config()
-        
-        await update.message.reply_text(f"✅ Group name set for {group_id}: {group_name}")
-    
-    async def get_info_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Admin command to get client information"""
-        if not self.is_admin(update.effective_user.id):
-            await update.message.reply_text("❌ Admin access required!")
-            return
-        
-        # Only allow in private chat
-        if update.effective_chat.type != "private":
-            await update.message.reply_text("❌ This command can only be used in private chat with the bot!")
-            return
-        
-        if not context.args:
-            await update.message.reply_text("❌ Usage: /getinfo CLNT_xxxx")
-            return
-        
-        client_id = context.args[0]
-        
-        if client_id not in self.client_data:
-            await update.message.reply_text("❌ Client ID not found!")
-            return
-        
-        client_data = self.client_data[client_id]
-        info_text = f"📋 Client Information:\n"
-        info_text += f"ID: {client_id}\n"
-        info_text += f"Telegram ID: {client_data['telegram_id']}\n"
-        info_text += f"Alias: {client_data.get('alias', 'Not set')}"
-        
-        await update.message.reply_text(info_text)
-    
-    async def list_clients_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Admin command to list all clients"""
-        if not self.is_admin(update.effective_user.id):
-            await update.message.reply_text("❌ Admin access required!")
-            return
-        
-        # Only allow in private chat
-        if update.effective_chat.type != "private":
-            await update.message.reply_text("❌ This command can only be used in private chat with the bot!")
-            return
-        
-        if not self.client_data:
-            await update.message.reply_text("📋 No clients registered yet.")
-            return
-        
-        clients_text = "📋 Registered Clients:\n\n"
-        for client_id, data in self.client_data.items():
-            alias = data.get("alias", "Not set")
-            clients_text += f"• {client_id}: {alias}\n"
-        
-        await update.message.reply_text(clients_text)
-    
-    async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Show help"""
-        user_id = update.effective_user.id
-        
-        if self.is_admin(user_id):
-            # Only show admin panel in private chat
-            if update.effective_chat.type == "private":
-                # Create admin buttons
-                keyboard = [
-                    [InlineKeyboardButton("📋 List Clients", callback_data="admin_list_clients")],
-                    [InlineKeyboardButton("➕ Add Group", callback_data="admin_add_group")],
-                    [InlineKeyboardButton("🔧 Admin Panel", callback_data="admin_panel")]
-                ]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                
-                help_text = """
-🔧 Admin Panel
-
-📱 **Button Commands (Click to use):**
-📋 List Clients - View all registered clients
-➕ Add Group - Add current group as authorized
-🔧 Admin Panel - Open full admin panel
 🔗 Assign Client to Groups - Assign specific groups to clients
 🗑️ Delete Clients - Remove unwanted clients
 ⏳ Pending Clients - Approve/reject new clients

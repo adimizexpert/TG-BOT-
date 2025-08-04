@@ -16,7 +16,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class WorkingBot:
+class ClientPrivacyManager:
     def __init__(self):
         """Initialize the bot with data storage"""
         self.config_file = "config.json"
@@ -302,13 +302,18 @@ class WorkingBot:
         await query.answer()
         
         if not self.is_admin(query.from_user.id):
-            await query.edit_message_text("❌ Admin access required!")
+            try:
+                await query.edit_message_text("❌ Admin access required!")
+            except:
+                await context.bot.send_message(chat_id=query.from_user.id, text="❌ Admin access required!")
             return
         
         data = query.data
         
         try:
-            if data == "admin_clients":
+            if data == "admin_panel":
+                await self.show_admin_panel_callback(query, context)
+            elif data == "admin_clients":
                 await self.show_clients_panel(query, context)
             elif data == "admin_groups":
                 await self.show_groups_panel(query, context)
@@ -334,7 +339,25 @@ class WorkingBot:
                 await query.edit_message_text("❌ Unknown action!")
         except Exception as e:
             logger.error(f"Error in callback query: {e}")
-            await query.edit_message_text("❌ An error occurred!")
+            try:
+                await query.edit_message_text("❌ An error occurred!")
+            except:
+                await context.bot.send_message(chat_id=query.from_user.id, text="❌ An error occurred!")
+    
+    async def show_admin_panel_callback(self, query, context):
+        """Show admin panel via callback"""
+        keyboard = [
+            [InlineKeyboardButton("👥 Manage Clients", callback_data="admin_clients")],
+            [InlineKeyboardButton("📋 Manage Groups", callback_data="admin_groups")],
+            [InlineKeyboardButton("🔗 Assign Clients", callback_data="admin_assign")],
+            [InlineKeyboardButton("➕ Add Admin", callback_data="admin_add_admin")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "🔧 Admin Panel\n\nSelect an option:",
+            reply_markup=reply_markup
+        )
     
     async def show_clients_panel(self, query, context):
         """Show clients management panel"""
@@ -495,21 +518,6 @@ class WorkingBot:
             reply_markup=reply_markup
         )
     
-    async def assign_to_callback(self, query, context):
-        """Handle assign_to callback"""
-        parts = query.data.split("_")
-        if len(parts) >= 4:
-            client_id = parts[2]
-            group_id = parts[3]
-            
-            # Assign client to group
-            self.config["CLIENT_GROUP_ASSIGNMENTS"][client_id] = group_id
-            self.save_config()
-            
-            await query.edit_message_text("✅ Client assigned to group!")
-        else:
-            await query.edit_message_text("❌ Invalid assignment data!")
-    
     async def add_group_callback(self, query, context):
         """Add current group via callback"""
         chat_id = str(query.message.chat.id)
@@ -528,6 +536,21 @@ class WorkingBot:
             "then use this command:\n\n"
             "/addadmin <user_id>"
         )
+    
+    async def assign_to_callback(self, query, context):
+        """Handle assign_to callback"""
+        parts = query.data.split("_")
+        if len(parts) >= 4:
+            client_id = parts[2]
+            group_id = parts[3]
+            
+            # Assign client to group
+            self.config["CLIENT_GROUP_ASSIGNMENTS"][client_id] = group_id
+            self.save_config()
+            
+            await query.edit_message_text("✅ Client assigned to group!")
+        else:
+            await query.edit_message_text("❌ Invalid assignment data!")
     
     async def add_admin_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Add admin command"""
@@ -552,7 +575,7 @@ class WorkingBot:
 
 def main():
     """Main function"""
-    bot = WorkingBot()
+    bot = ClientPrivacyManager()
     
     # Get bot token
     bot_token = os.getenv('BOT_TOKEN')
@@ -587,8 +610,12 @@ def main():
     application.add_handler(CallbackQueryHandler(bot.handle_callback_query))
     
     # Run the bot
-    print("🚀 Starting bot...")
-    application.run_polling()
+    try:
+        application.run_polling(drop_pending_updates=True)
+    except Exception as e:
+        print(f"❌ Error starting bot: {e}")
+        # Fallback method
+        application.run_polling()
 
 if __name__ == "__main__":
     try:

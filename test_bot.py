@@ -1,43 +1,55 @@
-#!/usr/bin/env python3
-"""
-Simple test script to verify bot token and basic functionality
-"""
-
 import os
-import asyncio
+import logging
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 from dotenv import load_dotenv
-from telegram import Bot
 
 # Load environment variables
 load_dotenv()
 
-async def test_bot():
-    """Test the bot token and basic functionality"""
+# Configure logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /start command"""
+    await update.message.reply_text("🤖 Bot is working! Hello!")
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /help command"""
+    await update.message.reply_text("💡 This is a test bot. Use /start to begin.")
+
+def main():
+    """Main function"""
+    # Get bot token
     bot_token = os.getenv('BOT_TOKEN')
-    
-    if not bot_token or bot_token == 'your_bot_token_here':
+    if not bot_token:
         print("❌ Error: BOT_TOKEN not set in .env file!")
         return
     
-    print("🤖 Testing bot token...")
+    print("🤖 Test Bot starting...")
+    print("✅ Using bot token from .env file")
+    print("🔄 Bot is now running...")
+    print("💡 Use Ctrl+C to stop the bot")
     
-    try:
-        bot = Bot(token=bot_token)
-        me = await bot.get_me()
-        print(f"✅ Bot connected successfully!")
-        print(f"📱 Bot name: {me.first_name}")
-        print(f"🆔 Bot username: @{me.username}")
-        print(f"🆔 Bot ID: {me.id}")
-        
-        # Test getting updates
-        updates = await bot.get_updates()
-        print(f"📨 Found {len(updates)} recent updates")
-        
-        await bot.close()
-        print("✅ Bot test completed successfully!")
-        
-    except Exception as e:
-        print(f"❌ Bot test failed: {e}")
+    # Create application
+    application = Application.builder().token(bot_token).build()
+    
+    # Add handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
+    
+    # Run the bot
+    print("🚀 Starting bot...")
+    application.run_polling()
 
 if __name__ == "__main__":
-    asyncio.run(test_bot()) 
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n🛑 Bot stopped by user")
+    except Exception as e:
+        print(f"❌ Error: {e}") 

@@ -16,7 +16,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class WorkingBot:
+class FinalBot:
     def __init__(self):
         """Initialize the bot with data storage"""
         self.config_file = "config.json"
@@ -186,12 +186,39 @@ class WorkingBot:
             [InlineKeyboardButton("👥 Manage Clients", callback_data="admin_clients")],
             [InlineKeyboardButton("📋 Manage Groups", callback_data="admin_groups")],
             [InlineKeyboardButton("🔗 Assign Clients", callback_data="admin_assign")],
-            [InlineKeyboardButton("➕ Add Admin", callback_data="admin_add_admin")]
+            [InlineKeyboardButton("🗑️ Delete Clients", callback_data="admin_delete_clients")],
+            [InlineKeyboardButton("🗑️ Delete Groups", callback_data="admin_delete_groups")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(
-            "🔧 Admin Panel\n\nSelect an option:",
+            "🔧 Admin Panel\n\n"
+            "📋 To add a group:\n"
+            "1. Add bot to the group\n"
+            "2. Use /addgroup command in the group\n"
+            "3. Or the bot will auto-add when an admin adds it\n\n"
+            "Select an option:",
+            reply_markup=reply_markup
+        )
+    
+    async def show_admin_panel_callback(self, query, context):
+        """Show admin panel via callback"""
+        keyboard = [
+            [InlineKeyboardButton("👥 Manage Clients", callback_data="admin_clients")],
+            [InlineKeyboardButton("📋 Manage Groups", callback_data="admin_groups")],
+            [InlineKeyboardButton("🔗 Assign Clients", callback_data="admin_assign")],
+            [InlineKeyboardButton("🗑️ Delete Clients", callback_data="admin_delete_clients")],
+            [InlineKeyboardButton("🗑️ Delete Groups", callback_data="admin_delete_groups")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "🔧 Admin Panel\n\n"
+            "📋 To add a group:\n"
+            "1. Add bot to the group\n"
+            "2. Use /addgroup command in the group\n"
+            "3. Or the bot will auto-add when an admin adds it\n\n"
+            "Select an option:",
             reply_markup=reply_markup
         )
     
@@ -216,7 +243,10 @@ class WorkingBot:
         
         # Forward message to assigned group
         try:
-            caption = f"📩 From: @{user.username or user.first_name}"
+            # Get first 3 letters of username or first name
+            display_name = user.username or user.first_name or "Unknown"
+            short_name = display_name[:3] if len(display_name) >= 3 else display_name
+            caption = f"📩 From: {short_name}"
             
             if update.message.text:
                 forwarded_msg = await context.bot.send_message(
@@ -273,28 +303,77 @@ class WorkingBot:
                     if message.text:
                         await context.bot.send_message(
                             chat_id=client_telegram_id,
-                            text=f"💬 Reply from group:\n\n{message.text}"
+                            text=f"💬 Reply from team:\n\n{message.text}"
                         )
                     elif message.photo:
                         await context.bot.send_photo(
                             chat_id=client_telegram_id,
                             photo=message.photo[-1].file_id,
-                            caption="💬 Reply from group:"
+                            caption="💬 Reply from team:"
                         )
                     elif message.video:
                         await context.bot.send_video(
                             chat_id=client_telegram_id,
                             video=message.video.file_id,
-                            caption="💬 Reply from group:"
+                            caption="💬 Reply from team:"
                         )
                     elif message.voice:
                         await context.bot.send_voice(
                             chat_id=client_telegram_id,
                             voice=message.voice.file_id,
-                            caption="💬 Reply from group:"
+                            caption="💬 Reply from team:"
                         )
                 except Exception as e:
                     logger.error(f"Error forwarding reply: {e}")
+    
+    async def handle_new_chat_members(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle when bot is added to a group"""
+        message = update.message
+        
+        # Check if bot was added to the group
+        for new_member in message.new_chat_members:
+            if new_member.id == context.bot.id:
+                chat_id = str(message.chat.id)
+                chat_title = message.chat.title or "Unknown Group"
+                
+                # Check if admin is adding the bot
+                if self.is_admin(message.from_user.id):
+                    # Add group to config
+                    self.config["GROUPS"][chat_id] = chat_title
+                    self.save_config()
+                    
+                    await message.reply_text(
+                        f"✅ Group '{chat_title}' has been added to the bot!\n\n"
+                        f"Group ID: {chat_id}\n"
+                        f"Group Name: {chat_title}\n\n"
+                        f"Use the admin panel to assign clients to this group."
+                    )
+                else:
+                    await message.reply_text(
+                        "❌ Only admins can add groups to the bot.\n\n"
+                        "Please contact an admin to add this group."
+                    )
+                break
+    
+    async def add_group_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Add current group command"""
+        if not self.is_admin(update.effective_user.id):
+            await update.message.reply_text("❌ Admin access required!")
+            return
+        
+        chat_id = str(update.message.chat.id)
+        chat_title = update.message.chat.title or "Unknown Group"
+        
+        # Add group to config
+        self.config["GROUPS"][chat_id] = chat_title
+        self.save_config()
+        
+        await update.message.reply_text(
+            f"✅ Group '{chat_title}' has been added!\n\n"
+            f"Group ID: {chat_id}\n"
+            f"Group Name: {chat_title}\n\n"
+            f"Use the admin panel to assign clients to this group."
+        )
     
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle callback queries"""
@@ -314,8 +393,10 @@ class WorkingBot:
                 await self.show_groups_panel(query, context)
             elif data == "admin_assign":
                 await self.show_assign_panel(query, context)
-            elif data == "admin_add_admin":
-                await self.show_add_admin_panel(query, context)
+            elif data == "admin_delete_clients":
+                await self.show_delete_clients_panel(query, context)
+            elif data == "admin_delete_groups":
+                await self.show_delete_groups_panel(query, context)
             elif data.startswith("approve_"):
                 await self.approve_client_callback(query, context)
             elif data.startswith("reject_"):
@@ -324,12 +405,14 @@ class WorkingBot:
                 await self.delete_client_callback(query, context)
             elif data.startswith("delete_group_"):
                 await self.delete_group_callback(query, context)
-            elif data.startswith("assign_"):
-                await self.assign_client_callback(query, context)
             elif data.startswith("assign_to_"):
                 await self.assign_to_callback(query, context)
+            elif data.startswith("assign_client_"):
+                await self.assign_client_callback(query, context)
             elif data == "add_group":
                 await self.add_group_callback(query, context)
+            elif data == "admin_panel":
+                await self.show_admin_panel_callback(query, context)
             else:
                 await query.edit_message_text("❌ Unknown action!")
         except Exception as e:
@@ -404,7 +487,7 @@ class WorkingBot:
             
             keyboard.append([InlineKeyboardButton(
                 f"👤 {username} → {group_name}", 
-                callback_data=f"assign_{client_id}"
+                callback_data=f"assign_client_{client_id}"
             )])
         
         keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="admin_panel")])
@@ -424,7 +507,25 @@ class WorkingBot:
         
         if client_id:
             self.approve_client(client_id)
-            await query.edit_message_text("✅ Client approved!")
+            
+            # Send approval notification to the client
+            try:
+                await context.bot.send_message(
+                    chat_id=telegram_id,
+                    text="🎉 **Congratulations!**\n\n"
+                         "✅ Your request has been **approved** by our admin!\n\n"
+                         "🚀 You can now start chatting with us. Send any message and we'll forward it to our team.\n\n"
+                         "💬 **How it works:**\n"
+                         "• Send us text, photos, videos, or voice messages\n"
+                         "• Our team will receive and respond to your messages\n"
+                         "• All replies will come back to you directly\n\n"
+                         "Thank you for using our service! 🙏",
+                    parse_mode='Markdown'
+                )
+            except Exception as e:
+                logger.error(f"Error sending approval notification to client {telegram_id}: {e}")
+            
+            await query.edit_message_text("✅ Client approved and notified!")
         else:
             await query.edit_message_text("❌ Client not found!")
     
@@ -474,7 +575,7 @@ class WorkingBot:
     
     async def assign_client_callback(self, query, context):
         """Assign client to group via callback"""
-        client_id = query.data.split("_")[1]
+        client_id = query.data.split("_")[2]
         groups = self.config.get("GROUPS", {})
         
         keyboard = []
@@ -520,39 +621,68 @@ class WorkingBot:
         
         await query.edit_message_text(f"✅ Group '{chat_title}' added!")
     
-    async def show_add_admin_panel(self, query, context):
-        """Show add admin panel"""
+    async def show_delete_clients_panel(self, query, context):
+        """Show delete clients panel"""
+        approved_clients = self.config.get("APPROVED_CLIENTS", {})
+        
+        if not approved_clients:
+            await query.edit_message_text(
+                "❌ No clients to delete!\n\n"
+                "🔙 Use /start to go back to admin panel."
+            )
+            return
+        
+        keyboard = []
+        for client_id, data in approved_clients.items():
+            username = data.get("username", "Unknown")
+            keyboard.append([InlineKeyboardButton(
+                f"🗑️ Delete {username}", 
+                callback_data=f"delete_client_{client_id}"
+            )])
+        
+        keyboard.append([InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_panel")])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
         await query.edit_message_text(
-            "➕ Add Admin\n\n"
-            "To add an admin, have them send /start to the bot, "
-            "then use this command:\n\n"
-            "/addadmin <user_id>"
+            "🗑️ **Delete Clients**\n\n"
+            "⚠️ **Warning:** This will permanently delete the client and all their data!\n\n"
+            "Select a client to delete:",
+            reply_markup=reply_markup
         )
     
-    async def add_admin_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Add admin command"""
-        if not self.is_admin(update.effective_user.id):
-            await update.message.reply_text("❌ Admin access required!")
+    async def show_delete_groups_panel(self, query, context):
+        """Show delete groups panel"""
+        groups = self.config.get("GROUPS", {})
+        
+        if not groups:
+            await query.edit_message_text(
+                "❌ No groups to delete!\n\n"
+                "🔙 Use /start to go back to admin panel."
+            )
             return
         
-        if not context.args:
-            await update.message.reply_text("❌ Usage: /addadmin <user_id>")
-            return
+        keyboard = []
+        for group_id, group_name in groups.items():
+            keyboard.append([InlineKeyboardButton(
+                f"🗑️ Delete {group_name}", 
+                callback_data=f"delete_group_{group_id}"
+            )])
         
-        try:
-            new_admin_id = int(context.args[0])
-            if new_admin_id not in self.config["ADMIN_IDS"]:
-                self.config["ADMIN_IDS"].append(new_admin_id)
-                self.save_config()
-                await update.message.reply_text(f"✅ Admin {new_admin_id} added!")
-            else:
-                await update.message.reply_text("❌ Admin already exists!")
-        except ValueError:
-            await update.message.reply_text("❌ Invalid user ID!")
+        keyboard.append([InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_panel")])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "🗑️ **Delete Groups**\n\n"
+            "⚠️ **Warning:** This will permanently remove the group from the bot!\n"
+            "Clients assigned to deleted groups will be unassigned.\n\n"
+            "Select a group to delete:",
+            reply_markup=reply_markup
+        )
+
 
 def main():
     """Main function"""
-    bot = WorkingBot()
+    bot = FinalBot()
     
     # Get bot token
     bot_token = os.getenv('BOT_TOKEN')
@@ -560,7 +690,7 @@ def main():
         print("❌ Error: BOT_TOKEN not set in .env file!")
         return
     
-    print("🤖 Client Privacy Manager starting...")
+    print("🤖 Final Client Privacy Manager starting...")
     print("✅ Using bot token from .env file")
     print("🔄 Bot is now running...")
     print("💡 Use Ctrl+C to stop the bot")
@@ -570,7 +700,7 @@ def main():
     
     # Add handlers
     application.add_handler(CommandHandler("start", bot.handle_start))
-    application.add_handler(CommandHandler("addadmin", bot.add_admin_command))
+    application.add_handler(CommandHandler("addgroup", bot.add_group_command))
     
     # Message handlers
     application.add_handler(MessageHandler(
@@ -581,6 +711,11 @@ def main():
     application.add_handler(MessageHandler(
         filters.ChatType.GROUPS & ~filters.COMMAND,
         bot.handle_group_message
+    ))
+
+    application.add_handler(MessageHandler(
+        filters.StatusUpdate.NEW_CHAT_MEMBERS,
+        bot.handle_new_chat_members
     ))
     
     # Callback query handler

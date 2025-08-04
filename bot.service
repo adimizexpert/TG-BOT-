@@ -1,0 +1,15 @@
+[Unit]
+Description=Client Privacy Manager Bot
+After=network.target
+
+[Service]
+Type=simple
+User=$USER
+WorkingDirectory=/home/sixyt4bit/#Clients/Webiste /TG final bot
+Environment=PATH=/home/sixyt4bit/#Clients/Webiste /TG final bot/venv/bin
+ExecStart=/home/sixyt4bit/#Clients/Webiste /TG final bot/venv/bin/python /home/sixyt4bit/#Clients/Webiste /TG final bot/bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target 

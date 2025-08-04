@@ -120,7 +120,28 @@ class FinalBot:
     async def handle_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /start command"""
         user = update.effective_user
+        chat = update.effective_chat
         
+        # Check if this is a group chat
+        if chat.type in ['group', 'supergroup']:
+            if self.is_admin(user.id):
+                # Admin in group - show only add group option
+                keyboard = [[InlineKeyboardButton("➕ Add This Group", callback_data="add_group")]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await update.message.reply_text(
+                    "🤖 **Group Management**\n\n"
+                    "Click the button below to add this group to the bot:",
+                    reply_markup=reply_markup
+                )
+            else:
+                # Non-admin in group
+                await update.message.reply_text(
+                    "❌ Only admins can manage groups."
+                )
+            return
+        
+        # Private chat logic
         if self.is_admin(user.id):
             # Admin start - show admin panel
             await self.show_admin_panel(update, context)
@@ -183,6 +204,7 @@ class FinalBot:
     async def show_admin_panel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show admin panel"""
         keyboard = [
+            [InlineKeyboardButton("⏳ Pending Approvals", callback_data="admin_pending")],
             [InlineKeyboardButton("👥 Manage Clients", callback_data="admin_clients")],
             [InlineKeyboardButton("📋 Manage Groups", callback_data="admin_groups")],
             [InlineKeyboardButton("🔗 Assign Clients", callback_data="admin_assign")],
@@ -204,6 +226,7 @@ class FinalBot:
     async def show_admin_panel_callback(self, query, context):
         """Show admin panel via callback"""
         keyboard = [
+            [InlineKeyboardButton("⏳ Pending Approvals", callback_data="admin_pending")],
             [InlineKeyboardButton("👥 Manage Clients", callback_data="admin_clients")],
             [InlineKeyboardButton("📋 Manage Groups", callback_data="admin_groups")],
             [InlineKeyboardButton("🔗 Assign Clients", callback_data="admin_assign")],
@@ -387,7 +410,9 @@ class FinalBot:
         data = query.data
         
         try:
-            if data == "admin_clients":
+            if data == "admin_pending":
+                await self.show_pending_panel(query, context)
+            elif data == "admin_clients":
                 await self.show_clients_panel(query, context)
             elif data == "admin_groups":
                 await self.show_groups_panel(query, context)
@@ -418,6 +443,47 @@ class FinalBot:
         except Exception as e:
             logger.error(f"Error in callback query: {e}")
             await query.edit_message_text("❌ An error occurred!")
+    
+    async def show_pending_panel(self, query, context):
+        """Show pending clients approval panel"""
+        pending_clients = self.config.get("PENDING_CLIENTS", {})
+        
+        if not pending_clients:
+            await query.edit_message_text(
+                "⏳ **Pending Approvals**\n\n"
+                "❌ No pending clients to approve.\n\n"
+                "🔙 Use /start to go back to admin panel."
+            )
+            return
+        
+        keyboard = []
+        
+        # Add pending clients with approve/reject buttons
+        for telegram_id, data in pending_clients.items():
+            username = data.get("username", "Unknown")
+            first_name = data.get("first_name", "")
+            display_name = f"{first_name} (@{username})" if username != "Unknown" else first_name
+            
+            # Create row with approve and reject buttons for each client
+            keyboard.append([
+                InlineKeyboardButton(f"✅ Approve", callback_data=f"approve_{telegram_id}"),
+                InlineKeyboardButton(f"❌ Reject", callback_data=f"reject_{telegram_id}")
+            ])
+            # Add client info as a separate row
+            keyboard.append([InlineKeyboardButton(
+                f"👤 {display_name}", 
+                callback_data=f"client_info_{telegram_id}"
+            )])
+        
+        keyboard.append([InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_panel")])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            f"⏳ **Pending Client Approvals**\n\n"
+            f"📊 **Total Pending**: {len(pending_clients)}\n\n"
+            f"👇 **Select an action for each client:**",
+            reply_markup=reply_markup
+        )
     
     async def show_clients_panel(self, query, context):
         """Show clients management panel"""

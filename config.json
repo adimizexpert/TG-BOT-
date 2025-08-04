@@ -4,12 +4,22 @@
     5638736363
   ],
   "PENDING_CLIENTS": {},
-  "APPROVED_CLIENTS": {},
+  "APPROVED_CLIENTS": {
+    "8d78eb81": {
+      "telegram_id": 1399652619,
+      "username": "Sixty4BitFreelancing",
+      "first_name": "Aditya \u26a1",
+      "status": "pending"
+    }
+  },
   "GROUPS": {
     "-4829251724": "01",
-    "-4983122487": "02"
+    "-4983122487": "02",
+    "-4884294781": "03"
   },
-  "CLIENT_GROUP_ASSIGNMENTS": {},
+  "CLIENT_GROUP_ASSIGNMENTS": {
+    "8d78eb81": "-4884294781"
+  },
   "MESSAGE_LINK_MAP": {
     "-4829251724_709": "e7dcf47d",
     "-4829251724_714": "e7dcf47d",
@@ -19,6 +29,7 @@
     "-4829251724_730": "e7dcf47d",
     "-4829251724_733": "e7dcf47d",
     "-4983122487_756": "10485b94",
-    "-4983122487_761": "10485b94"
+    "-4983122487_761": "10485b94",
+    "-4884294781_792": "8d78eb81"
   }
 }

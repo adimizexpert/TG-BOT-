@@ -14,18 +14,25 @@ if [ "$USER" != "botuser" ]; then
 fi
 
 # Set variables
-BOT_DIR="/home/botuser/telegram-bot"
+BOT_DIR="/home/botuser/TGBOTS/Adimibot/TG-BOT-"
 SERVICE_NAME="telegram-bot"
 
-echo "📁 Setting up bot directory..."
-cd $BOT_DIR || { echo "❌ Bot directory not found!"; exit 1; }
 
-echo "🐍 Creating virtual environment..."
-python3 -m venv venv
+echo "📁 Setting up bot directory..."
+mkdir -p "$BOT_DIR"
+cd "$BOT_DIR" || { echo "❌ Bot directory not found!"; exit 1; }
+
+echo "🐍 Creating virtual environment (if missing)..."
+python3 -m venv venv || true
 source venv/bin/activate
 
 echo "📦 Installing dependencies..."
-pip install -r requirements.txt
+pip install --upgrade pip setuptools wheel
+if [ -f requirements.txt ]; then
+    pip install -r requirements.txt
+else
+    echo "⚠️  requirements.txt not found — make sure it's in the repo"
+fi
 
 echo "⚙️ Checking .env file..."
 if [ ! -f ".env" ]; then
@@ -36,7 +43,7 @@ if [ ! -f ".env" ]; then
     exit 1
 fi
 
-echo "🔧 Creating systemd service..."
+echo "🔧 Creating systemd service (uses venv/bin/python3 and loads .env)"
 sudo tee /etc/systemd/system/$SERVICE_NAME.service > /dev/null <<EOF
 [Unit]
 Description=Client Privacy Manager Bot
@@ -46,10 +53,14 @@ After=network.target
 Type=simple
 User=botuser
 WorkingDirectory=$BOT_DIR
-Environment=PATH=$BOT_DIR/venv/bin
-ExecStart=$BOT_DIR/venv/bin/python $BOT_DIR/final_bot.py
-Restart=always
+# Load environment variables from the project's .env
+EnvironmentFile=$BOT_DIR/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=$BOT_DIR/venv/bin/python3 $BOT_DIR/bot.py
+Restart=on-failure
 RestartSec=10
+StandardOutput=append:$BOT_DIR/bot.log
+StandardError=append:$BOT_DIR/bot.log
 
 [Install]
 WantedBy=multi-user.target

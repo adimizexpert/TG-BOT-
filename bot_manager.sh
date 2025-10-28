@@ -13,21 +13,30 @@ case "$1" in
         echo "🏠 Starting LOCAL bot..."
         echo "⚠️  Make sure VPS bot is stopped first!"
         read -p "Press Enter to continue or Ctrl+C to cancel..."
-        
-        # Stop any existing local instances
-        pkill -f "python.*bot.py" 2>/dev/null || true
-        pkill -f "python.*final_bot.py" 2>/dev/null || true
-        
-        # Start local bot
-        export VIRTUAL_ENV="$(pwd)/venv"
-        export PATH="$VIRTUAL_ENV/bin:$PATH"
-        python final_bot.py
+
+        # Stop any existing local instances from this directory
+        pkill -f "$(pwd)/bot.py" 2>/dev/null || true
+        pkill -f "$(pwd)/final_bot.py" 2>/dev/null || true
+
+        # Load .env if present
+        if [ -f ".env" ]; then
+            set -a; . .env; set +a
+        fi
+
+        # Ensure venv python is used
+        VENV="$(pwd)/venv"
+        if [ -x "$VENV/bin/python3" ]; then
+            "$VENV/bin/python3" final_bot.py
+        else
+            echo "⚠️ venv python3 not found, falling back to system python3"
+            python3 final_bot.py
+        fi
         ;;
         
     "vps")
         echo "☁️  Instructions for VPS bot..."
         echo ""
-        echo "Run these commands on your VPS:"
+        echo "Run these commands on your VPS (as appropriate):"
         echo "--------------------------------"
         echo "# Stop any local instances first"
         echo "sudo pkill -f 'python.*bot.py'"
@@ -36,17 +45,17 @@ case "$1" in
         echo "sudo systemctl start telegram-bot"
         echo "sudo systemctl status telegram-bot"
         echo ""
-        echo "# View logs"
-        echo "sudo journalctl -u telegram-bot -f"
+        echo "# View logs (the service is configured to log to bot.log inside the project)"
+        echo "sudo tail -f /home/botuser/TGBOTS/Adimibot/TG-BOT-/bot.log"
         ;;
         
     "stop")
         echo "🛑 Stopping ALL bot instances..."
         
         # Stop local instances
-        echo "Stopping local instances..."
-        pkill -f "python.*bot.py" 2>/dev/null || true
-        pkill -f "python.*final_bot.py" 2>/dev/null || true
+    echo "Stopping local instances..."
+    pkill -f "$(pwd)/bot.py" 2>/dev/null || true
+    pkill -f "$(pwd)/final_bot.py" 2>/dev/null || true
         
         echo ""
         echo "To stop VPS bot, run on your server:"
@@ -57,13 +66,13 @@ case "$1" in
         echo "📊 Bot Status Check"
         echo "==================="
         
-        # Check local processes
-        LOCAL_PROCS=$(ps aux | grep -E "python.*(final_)?bot\.py" | grep -v grep | wc -l)
+        # Check local processes in this directory
+        LOCAL_PROCS=$(ps aux | grep -F "$(pwd)/bot.py" | grep -v grep | wc -l)
         echo "🏠 Local instances: $LOCAL_PROCS"
         
         if [ $LOCAL_PROCS -gt 0 ]; then
             echo "   Active local processes:"
-            ps aux | grep -E "python.*(final_)?bot\.py" | grep -v grep
+            ps aux | grep -F "$(pwd)/bot.py" | grep -v grep || true
         fi
         
         echo ""

@@ -4,12 +4,21 @@ After=network.target
 
 [Service]
 Type=simple
-User=$USER
-WorkingDirectory=/home/sixyt4bit/#Clients/Webiste /TG final bot
-Environment=PATH=/home/sixyt4bit/#Clients/Webiste /TG final bot/venv/bin
-ExecStart=/home/sixyt4bit/#Clients/Webiste /TG final bot/venv/bin/python /home/sixyt4bit/#Clients/Webiste /TG final bot/bot.py
-Restart=always
+User=botuser
+# Working directory of the bot (adjust if your bot is installed elsewhere)
+WorkingDirectory=/home/botuser/TGBOTS/Adimibot/TG-BOT-
+# Load environment variables from the project's .env file (must be KEY=VALUE lines)
+EnvironmentFile=/home/botuser/TGBOTS/Adimibot/TG-BOT-/.env
+# Ensure unbuffered Python output for real-time logging
+Environment=PYTHONUNBUFFERED=1
+# Use the venv python3 interpreter inside the project
+ExecStart=/home/botuser/TGBOTS/Adimibot/TG-BOT-/venv/bin/python3 /home/botuser/TGBOTS/Adimibot/TG-BOT-/bot.py
+# Restart on failure (prevents restart loops for manual stops)
+Restart=on-failure
 RestartSec=10
+# Append stdout/stderr to a project-local bot.log for easy debugging
+StandardOutput=append:/home/botuser/TGBOTS/Adimibot/TG-BOT-/bot.log
+StandardError=append:/home/botuser/TGBOTS/Adimibot/TG-BOT-/bot.log
 
 [Install]
-WantedBy=multi-user.target 
+WantedBy=multi-user.target

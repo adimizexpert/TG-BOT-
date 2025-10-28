@@ -1,4 +1,14 @@
-APScheduler==3.6.3
+python-telegram-bot>=21.0,<22
+python-dotenv==1.0.0
+aiohttp>=3.8
+certifi
+tzlocal
+requests
+
+# Notes:
+# - python-telegram-bot 21.x uses the modern async API (ApplicationBuilder, handlers as async).
+# - Keep versions flexible within the 21.x series to allow security fixes; pin exact versions
+#   if you need reproducible deployments.APScheduler==3.6.3
 cachetools==4.2.2
 certifi==2025.10.5
 python-dotenv==1.0.0

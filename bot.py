@@ -3,7 +3,7 @@ import json
 import logging
 from typing import Dict, Optional
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -588,8 +588,8 @@ def main():
     print("🔄 Bot is now running...")
     print("💡 Use Ctrl+C to stop the bot")
     
-    # Create application
-    application = Application.builder().token(bot_token).build()
+    # Create application (ApplicationBuilder is the modern async entrypoint)
+    application = ApplicationBuilder().token(bot_token).build()
     
     # Add handlers
     application.add_handler(CommandHandler("start", bot.handle_start))

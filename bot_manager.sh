@@ -5,6 +5,9 @@
 
 BOT_TOKEN="8345847465:AAEKaXDbiAx_fgb77uH-pZ9k6V2xVUHwU04"
 
+BOT_USER="botuser"
+APP_DIR="/home/${BOT_USER}/TGBOTS/Adimibot/TG-BOT-"
+
 echo "🤖 Client Privacy Manager - Bot Manager"
 echo "======================================"
 
@@ -14,22 +17,22 @@ case "$1" in
         echo "⚠️  Make sure VPS bot is stopped first!"
         read -p "Press Enter to continue or Ctrl+C to cancel..."
 
-        # Stop any existing local instances from this directory
-        pkill -f "$(pwd)/bot.py" 2>/dev/null || true
-        pkill -f "$(pwd)/final_bot.py" 2>/dev/null || true
+    # Stop any existing local instances for the app dir
+    pkill -f "$APP_DIR/bot.py" 2>/dev/null || true
+    pkill -f "$APP_DIR/final_bot.py" 2>/dev/null || true
 
         # Load .env if present
-        if [ -f ".env" ]; then
-            set -a; . .env; set +a
+        if [ -f "$APP_DIR/.env" ]; then
+            set -a; . "$APP_DIR/.env"; set +a
         fi
 
         # Ensure venv python is used
-        VENV="$(pwd)/venv"
+        VENV="$APP_DIR/venv"
         if [ -x "$VENV/bin/python3" ]; then
-            "$VENV/bin/python3" final_bot.py
+            "$VENV/bin/python3" "$APP_DIR/final_bot.py"
         else
             echo "⚠️ venv python3 not found, falling back to system python3"
-            python3 final_bot.py
+            python3 "$APP_DIR/final_bot.py"
         fi
         ;;
         

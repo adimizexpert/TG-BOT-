@@ -5,7 +5,8 @@ set -euo pipefail
 # Ensures .env is sourced, logs written to bot.log in project root,
 # and prevents duplicate processes by recording PID in bot.pid
 
-APP_DIR="$(pwd)"
+BOT_USER="botuser"
+APP_DIR="/home/${BOT_USER}/TGBOTS/Adimibot/TG-BOT-"
 VENV_DIR="$APP_DIR/venv"
 PYTHON="$VENV_DIR/bin/python3"
 PID_FILE="$APP_DIR/bot.pid"

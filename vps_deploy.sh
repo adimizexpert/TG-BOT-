@@ -22,8 +22,34 @@ echo "📁 Setting up bot directory..."
 mkdir -p "$BOT_DIR"
 cd "$BOT_DIR" || { echo "❌ Bot directory not found!"; exit 1; }
 
+echo "🐍 Ensure Python 3.13 is available (system or pyenv)"
+PYTHON_VERSION="3.13.3"
+if command -v python3.13 >/dev/null 2>&1; then
+    PYTHON_BIN=$(command -v python3.13)
+    echo "Using system python: $PYTHON_BIN"
+else
+    echo "python3.13 not found; installing pyenv and building ${PYTHON_VERSION}"
+    sudo apt update -y
+    sudo apt install -y build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev \
+        wget curl llvm libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev git || true
+
+    if [ ! -d "$HOME/.pyenv" ]; then
+        curl https://pyenv.run | bash
+    fi
+    export PYENV_ROOT="$HOME/.pyenv"
+    export PATH="$PYENV_ROOT/bin:$PATH"
+    eval "$(pyenv init -)" || true
+
+    if ! pyenv versions --bare | grep -q "^${PYTHON_VERSION}$"; then
+        pyenv install -s "${PYTHON_VERSION}"
+    fi
+    pyenv local "${PYTHON_VERSION}"
+    PYTHON_BIN="$HOME/.pyenv/versions/${PYTHON_VERSION}/bin/python3"
+    echo "Using pyenv python: $PYTHON_BIN"
+fi
+
 echo "🐍 Creating virtual environment (if missing)..."
-python3 -m venv venv || true
+"$PYTHON_BIN" -m venv venv || true
 source venv/bin/activate
 
 echo "📦 Installing dependencies..."
